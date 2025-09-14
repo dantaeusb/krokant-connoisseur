@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc-alias",
     "dev": "ts-node -r tsconfig-paths/register src/index.ts",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug 0.0.0.0:9229 --watch",
-    "start:prod": "node dist/apps/api/main",
+    "start:prod": "node dist/index.js",
     "watch": "nodemon --watch src --exec \"ts-node -r tsconfig-paths/register src/index.ts\" -e ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -41,6 +41,7 @@
     "nodemon": "^3.1.9",
     "prettier": "^2.3.2",
     "ts-node": "^10.9.2",
+    "tsc-alias": "^1.8.16",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.2"
   }
