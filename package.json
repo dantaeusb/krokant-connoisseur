@@ -4,9 +4,12 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
-    "watch": "nodemon --watch src --exec ts-node src/index.ts",
+    "dev": "ts-node -r tsconfig-paths/register src/index.ts",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug 0.0.0.0:9229 --watch",
+    "start:prod": "node dist/apps/api/main",
+    "watch": "nodemon --watch src --exec \"ts-node -r tsconfig-paths/register src/index.ts\" -e ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -16,9 +19,11 @@
   "dependencies": {
     "@google-cloud/translate": "^9.2.0",
     "@google/genai": "^1.19.0",
+    "@nestjs/mongoose": "^11.0.3",
     "@nestjs/schedule": "^6.0.0",
     "dotenv": "^17.2.2",
     "emoji-regex": "^10.5.0",
+    "mongoose": "^8.18.1",
     "nestjs-telegraf": "^2.9.1",
     "node-cron": "^4.2.1",
     "redis": "^5.8.2"
@@ -36,6 +41,7 @@
     "nodemon": "^3.1.9",
     "prettier": "^2.3.2",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.2"
   }
 }

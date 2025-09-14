@@ -3,13 +3,12 @@ services:
   app:
     build: .
     depends_on:
-      - redis
+      - mongo
     environment:
-      - REDIS_URL=redis://redis:6379
+      - MONGO_URL=mongodb://mongo:27017/bot
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - MESSAGE_LIMIT=${MESSAGE_LIMIT}
-  redis:
-    image: "redis:alpine"
+  mongo:
+    image: "mongo:8.0"
     ports:
-      - "6379:6379"
-
+      - "27017:27017"

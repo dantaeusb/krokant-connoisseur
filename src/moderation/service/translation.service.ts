@@ -3,13 +3,13 @@ import { TranslationServiceClient } from "@google-cloud/translate/build/src/v3";
 
 @Injectable()
 export class TranslationService {
-  private readonly logger = new Logger("Translation/Service");
+  private readonly logger = new Logger("Moderation/TranslationService");
 
   googleTranslateClient: TranslationServiceClient;
 
   constructor() {
     this.googleTranslateClient = new TranslationServiceClient({
-      keyFilename: "./krokant-connoisseur-chat-c383b4003ae7.json",
+      keyFilename: "./gcp-key.json",
     });
   }
 

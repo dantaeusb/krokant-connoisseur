@@ -10,7 +10,30 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./src",
-    "incremental": true
+    "incremental": true,
+    "paths": {
+      "@/*": [
+        "*"
+      ],
+      "@core": [
+        "core"
+      ],
+      "@core/*": [
+        "core/*"
+      ],
+      "@moderation": [
+        "moderation"
+      ],
+      "@moderation/*": [
+        "moderation/*"
+      ],
+      "@character": [
+        "character"
+      ],
+      "@character/*": [
+        "character/*"
+      ]
+    }
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
 }

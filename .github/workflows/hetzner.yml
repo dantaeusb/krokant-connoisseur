@@ -1,0 +1,66 @@
+name: Hetzner Docker CI
+
+on:
+  release:
+    types: [ published, deleted ]
+
+jobs:
+  prepare:
+    runs-on: [ self-hosted, production ]
+    steps:
+      - id: latest
+        uses: thebritican/fetch-latest-release@v1.0.3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ steps.latest.outputs.tag_name }}
+      - name: Update secrets
+        run: 'echo "$PRODUCTION_ENV" > .production.env'
+        env:
+          PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV }}
+      - name: Update GCP key
+        run: 'echo "$GCP_KEY" > gcp-key.json'
+        env:
+          PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV }}
+      - name: 'Prepare ENV variables'
+        run: set -a && . .production.env && set +a
+      - name: 'Build Nest builder :)'
+        run: docker build --build-arg VERSION=$VERSION --build-arg RUNNING_USER=$RUNNING_USER -f ./cd/node/Dockerfile . -t nest-builder
+        env:
+          VERSION: ${{ github.ref_name }}
+          RUNNING_USER: ${{ secrets.HETZNER_RUNNING_USER }}
+      - name: 'Install packages'
+        run: docker run -u=$RUNNING_USER -v zetter-modules:/app/node_modules nest-builder npm ci --include=dev
+        env:
+          RUNNING_USER: ${{ secrets.HETZNER_RUNNING_USER }}
+
+  build-app:
+    runs-on: self-hosted
+    needs: prepare
+    steps:
+      - name: 'Build API code'
+        run: docker run -u=$RUNNING_USER -v $(pwd):/app -v zetter-modules:/app/node_modules nest-builder npm run build api
+        env:
+          RUNNING_USER: ${{ secrets.HETZNER_RUNNING_USER }}
+      - name: 'Build API container'
+        run: docker-compose --env-file=.production.env -f docker-compose.prod.yml -p zg-backend build api
+        env:
+          VERSION: ${{ github.ref_name }}
+          RUNNING_USER: ${{ secrets.HETZNER_RUNNING_USER }}
+      - name: 'Push API container to local registry'
+        run: docker-compose --env-file=.production.env -f docker-compose.prod.yml -p zg-backend push api
+        env:
+          VERSION: ${{ github.ref_name }}
+          RUNNING_USER: ${{ secrets.HETZNER_RUNNING_USER }}
+
+  deploy:
+    runs-on: self-hosted
+    needs:
+      - build-app
+    steps:
+      - name: Deploy to swarm
+        run: VERSION=$VERSION RUNNING_USER=$RUNNING_USER docker stack deploy -c <(docker-compose -f docker-compose.prod.yml -p krokant-connoisseur --env-file .production.env config) --with-registry-auth zg-backend
+        env:
+          VERSION: ${{ github.ref_name }}
+          RUNNING_USER: ${{ secrets.HETZNER_RUNNING_USER }}

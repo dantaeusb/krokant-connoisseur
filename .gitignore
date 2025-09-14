@@ -38,4 +38,5 @@ lerna-debug.log*
 /static
 .*.env
 .env
-/krokant-connoisseur-chat-c383b4003ae7.json
+.prompt
+/gcp-key.json
