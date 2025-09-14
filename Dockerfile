@@ -1,24 +1,29 @@
-# Use an official Node.js runtime as a parent image
-FROM node:18-alpine
-
-# Set the working directory in the container
-WORKDIR /usr/src/app
-
-# Copy package.json and package-lock.json to the working directory
+# --- Base deps stage ---
+FROM node:24-alpine AS deps
+WORKDIR /app
 COPY package*.json ./
+RUN npm ci
 
-# Install any needed packages
-RUN npm install
+# --- Build stage ---
+FROM node:24-alpine AS build
+WORKDIR /app
 
-# Bundle app source
-COPY . .
+COPY package*.json ./
+COPY tsconfig*.json ./
+COPY --from=deps /app/node_modules ./node_modules
+COPY src ./src
 
-# Build TypeScript code
-RUN npm run build
+RUN npm run build && npm prune --omit=dev
 
-# Your app binds to port 3000 so you'll use the EXPOSE instruction
-EXPOSE 3000
+# --- Production runtime image ---
+FROM node:24-alpine AS prod
+WORKDIR /app
+ENV NODE_ENV=production
 
-# Define the command to run your app
-CMD [ "node", "dist/index.js" ]
+COPY package*.json ./
+COPY tsconfig*.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
 
+USER node
+CMD ["node", "dist/index.js"]

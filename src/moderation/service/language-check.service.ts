@@ -17,7 +17,7 @@ export class LanguageCheckService {
   private static PORTUGUESE_LETTERS = "A-Za-z\u00C0-\u00FF"; // Latin-1 Supplement for Portuguese
   private static DIGITS = "0-9"; // Digits
   private static COMMON_SYMBOLS =
-    "!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?`~"; // Common symbols
+    "!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?`~\n"; // Common symbols
   private static MATH_SYMBOLS = "\u2200-\u22FF"; // Mathematical operators
   private static FORMATTING_SYMBOLS = "\u2000-\u206F"; // Formatting symbols
 

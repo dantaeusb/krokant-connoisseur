@@ -1,14 +1,34 @@
 version: '3.8'
 services:
   app:
-    build: .
-    depends_on:
-      - mongo
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod
+    restart: on-failure:3
+    env_file: .env
     environment:
-      - MONGO_URL=mongodb://mongo:27017/bot
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - MESSAGE_LIMIT=${MESSAGE_LIMIT}
+      - MONGODB_URI=mongodb://mongo:27017/bot
+    depends_on:
+      mongo:
+        condition: service_started
+    volumes:
+      - ./gcp-key.json:/app/gcp-key.json:ro
+    networks:
+      - bot
   mongo:
-    image: "mongo:8.0"
+    image: mongo:8.0
+    restart: on-failure:3
     ports:
-      - "27017:27017"
+      - "27027:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - bot
+
+networks:
+  bot:
+    driver: bridge
+
+volumes:
+  mongo-data:

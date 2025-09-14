@@ -37,6 +37,6 @@ lerna-debug.log*
 # Custom
 /static
 .*.env
-.env
+.production.env
 .prompt
 /gcp-key.json

@@ -1,42 +1,80 @@
 import { Injectable, Logger } from "@nestjs/common";
-import * as fs from "fs";
-import * as path from "path";
+import { ConfigEntity } from "../entity/config.entity";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model } from "mongoose";
 
 @Injectable()
 export class ConfigService {
-  private static FALLBACK_SYSTEM_PROMPT = "You are a helpful assistant.";
-
   private readonly logger = new Logger(ConfigService.name);
 
-  public readonly systemPrompt: string;
+  private readonly configCache: Map<number, ConfigEntity> = new Map();
 
-  constructor() {
-    this.systemPrompt = this.loadSystemPrompt();
+  constructor(
+    @InjectModel(ConfigEntity.name) private configModel: Model<ConfigEntity>
+  ) {
+    void this.reloadConfig();
   }
 
-  // Load the system prompt from a .prompt file in the current working directory.
-  private loadSystemPrompt(): string {
-    try {
-      const promptPath = path.resolve(process.cwd(), ".prompt");
-      if (!fs.existsSync(promptPath)) {
-        this.logger.warn(
-          `.prompt file not found at ${promptPath}. Using empty system prompt.`
-        );
-        return "";
-      }
-      const raw = fs.readFileSync(promptPath, "utf8");
-      // Split into lines, drop those starting with # after trimming whitespace, then join.
-      const lines = raw
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0 && !l.startsWith("#"));
-      return lines.join("\n");
-    } catch (err) {
-      this.logger.error(
-        "Failed to load system prompt",
-        err instanceof Error ? err.stack : String(err)
-      );
-      return ConfigService.FALLBACK_SYSTEM_PROMPT;
+  public async reloadConfig(chatId?: number) {
+    let searchCriteria = {};
+
+    if (chatId) {
+      searchCriteria = { chatId: chatId.toString() };
+      this.configCache.delete(chatId);
+    } else {
+      this.configCache.clear();
     }
+
+    return await this.configModel
+      .find(searchCriteria)
+      .exec()
+      .then((configs) => {
+        configs.forEach((config) => {
+          this.configCache.set(config.chatId, config);
+        });
+        return configs;
+      })
+      .catch((error) => {
+        this.logger.error("Failed to reload configurations", error);
+        return [] as ConfigEntity[];
+      });
+  }
+
+  public async getConfig(chatId?: number) {
+    if (chatId && this.configCache.has(chatId)) {
+      return this.configCache.get(chatId);
+    }
+
+    const config = await this.configModel
+      .findOneAndUpdate(
+        { chatId: chatId },
+        {},
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        }
+      )
+      .exec();
+
+    if (chatId) {
+      this.configCache.set(chatId, config);
+    }
+
+    return config;
+  }
+
+  public async setYapping(chatId: number, yapping: boolean) {
+    const config = await this.getConfig(chatId);
+
+    if (config) {
+      config.yapping = yapping;
+      await this.configModel
+        .updateOne({ chatId: chatId }, { yapping: yapping })
+        .exec();
+      this.configCache.set(chatId, config);
+    }
+
+    return config;
   }
 }

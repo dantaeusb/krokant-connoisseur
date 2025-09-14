@@ -21,6 +21,7 @@ import {
 import { Update as TelegramUpdate } from "telegraf/types";
 import { CharacterService } from "@character/service/character.service";
 import { MessageService } from "@core/service/message.service";
+import { ConfigService } from "@core/service/config.service";
 
 @Update()
 export class ModerationController {
@@ -29,6 +30,7 @@ export class ModerationController {
   constructor(
     @InjectBot(ClankerBotName)
     private readonly bot: Telegraf<Context>,
+    private readonly configService: ConfigService,
     private readonly moderationService: ModerationService,
     private readonly translationService: TranslationService,
     private readonly languageCheckService: LanguageCheckService,
@@ -264,9 +266,10 @@ export class ModerationController {
       | TelegramUpdate.EditedMessageUpdate["edited_message"],
     answer: string
   ) {
-    const fancy = true;
+    const config = await this.configService.getConfig(context.chat.id);
+    const rephrase = config ? !config.yapping : false;
 
-    if (fancy) {
+    if (rephrase) {
       answer = await this.characterService.rephrase(
         answer,
         `${context.from.first_name} ${context.from.last_name ?? ""}`

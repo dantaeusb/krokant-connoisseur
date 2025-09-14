@@ -4,6 +4,7 @@ import { Context } from "../interface/context.interface";
 
 @Injectable()
 export class AdminGuard implements CanActivate {
+  // @todo: the right thing
   private static readonly ADMIN_IDS = [132524050];
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

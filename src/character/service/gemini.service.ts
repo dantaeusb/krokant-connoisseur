@@ -10,6 +10,9 @@ import * as process from "node:process";
 
 @Injectable()
 export class GeminiService {
+  private static FALLBACK_SYSTEM_PROMPT =
+    "You are a friendly and helpful assistant.";
+
   private readonly logger = new Logger("Character/GeminiService");
 
   private readonly googleGenAI: GoogleGenAI;
@@ -40,9 +43,7 @@ export class GeminiService {
     },
   ];
 
-  constructor(
-    private readonly configService: ConfigService,
-  ) {
+  constructor(private readonly configService: ConfigService) {
     this.googleGenAI = new GoogleGenAI({
       vertexai: true,
       //location: "europe-west9",
@@ -54,7 +55,10 @@ export class GeminiService {
     });
   }
 
-  public async good(prompt: string): Promise<string | null> {
+  public async good(
+    prompt: string,
+    systemPrompt?: string
+  ): Promise<string | null> {
     const result = await this.googleGenAI.models.generateContent({
       model: "gemini-2.5-pro",
       contents: prompt,
@@ -62,7 +66,7 @@ export class GeminiService {
         candidateCount: 1,
         maxOutputTokens: 1500,
         safetySettings: this.safetySettings,
-        systemInstruction: this.configService.systemPrompt,
+        systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
       },
     });
 
@@ -71,7 +75,10 @@ export class GeminiService {
     return result.text ?? null;
   }
 
-  public async quick(prompt: string): Promise<string | null> {
+  public async quick(
+    prompt: string,
+    systemPrompt?: string
+  ): Promise<string | null> {
     const result = await this.googleGenAI.models.generateContent({
       model: "gemini-2.5-flash-lite",
       contents: prompt,
@@ -79,7 +86,7 @@ export class GeminiService {
         candidateCount: 1,
         maxOutputTokens: 250,
         safetySettings: this.safetySettings,
-        systemInstruction: this.configService.systemPrompt,
+        systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
       },
     });
 

@@ -1,9 +1,13 @@
 import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@core/service/config.service";
 import { GeminiService } from "./gemini.service";
 
 @Injectable()
 export class CharacterService {
-  constructor(private readonly geminiService: GeminiService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly geminiService: GeminiService
+  ) {}
 
   public async respond(text: string, name?: string): Promise<string> {
     let prompt = `Reply to following message:${text}`;
@@ -12,7 +16,12 @@ export class CharacterService {
       prompt = `You are replying to ${name}\n` + prompt;
     }
 
-    const result = await this.geminiService.good(prompt);
+    const chatConfig = await this.configService.getConfig();
+
+    const result = await this.geminiService.good(
+      prompt,
+      chatConfig.systemPrompt
+    );
 
     if (!result) {
       return this.fallback();
@@ -28,7 +37,12 @@ export class CharacterService {
       prompt = `You are replying to ${name}\n` + prompt;
     }
 
-    const result = await this.geminiService.quick(prompt);
+    const chatConfig = await this.configService.getConfig();
+
+    const result = await this.geminiService.quick(
+      prompt,
+      chatConfig.systemPrompt
+    );
 
     if (!result) {
       return this.fallback();

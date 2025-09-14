@@ -83,15 +83,21 @@ export class ModerationService {
     reason?: string
   ): Promise<BanResult> {
     const banEntity = await this.banEntityModel
-      .findOne({ chatId: chatId, userId: userId }, null, {
-        upsert: true,
-        new: true,
-        setDefaultsOnInsert: true,
-      })
+      .findOneAndUpdate(
+        { chatId: chatId, userId: userId },
+        {
+          $inc: {
+            severity: 1,
+          },
+          reason: reason,
+        },
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        }
+      )
       .exec();
-
-    banEntity.severity++;
-    await banEntity.save();
 
     const banTime = this.calculateBanDuration(banEntity);
 
