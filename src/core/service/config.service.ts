@@ -7,7 +7,7 @@ import { Model } from "mongoose";
 export class ConfigService {
   private readonly logger = new Logger(ConfigService.name);
 
-  public readonly botId = parseInt(process.env.BOT_ID || "0", 10);
+  public readonly botId = parseInt(process.env.TELEGRAM_BOT_ID || "0", 10);
   private readonly configCache: Map<number, ConfigEntity> = new Map();
 
   constructor(

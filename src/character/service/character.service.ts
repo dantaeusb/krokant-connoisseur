@@ -35,7 +35,7 @@ export class CharacterService {
     const promptThreadChain: Array<Content> = this.chainToPrompt(chain);
 
     if (promptThreadChain) {
-      promptThreadChain.push({
+      promptList.push({
         role: "user",
         parts: [{ text: `Here's the context of your conversation:\n` }],
       });

@@ -41,7 +41,9 @@ export class ConfigController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    this.logger.log("Handling /sybau command (reduce LLM talking & stop rephrasing)");
+    this.logger.log(
+      "Handling /sybau command (reduce LLM talking & stop rephrasing)"
+    );
 
     const result = await this.configService
       .setYapping(context.chat.id, false)
@@ -62,7 +64,9 @@ export class ConfigController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    this.logger.log("Handling /yapping command (increase LLM talking & start rephrasing)");
+    this.logger.log(
+      "Handling /yapping command (increase LLM talking & start rephrasing)"
+    );
 
     const result = await this.configService
       .setYapping(context.chat.id, true)

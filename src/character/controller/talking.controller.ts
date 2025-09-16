@@ -81,13 +81,22 @@ export class TalkingController {
       context.text,
       user
     );
-    await context.reply(response, {
+
+    const result = await context.reply(response, {
       reply_parameters: {
         chat_id: context.chat.id,
         message_id: message.message_id,
         allow_sending_without_reply: false,
       },
     });
+
+    void this.messageService.recordBotMessage(
+      context.chat.id,
+      result.message_id,
+      response,
+      message.message_id,
+      result.date,
+    );
 
     return next();
   }

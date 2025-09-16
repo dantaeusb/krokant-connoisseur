@@ -4,7 +4,8 @@ import { Update } from "telegraf/types";
 import { UserService } from "@core/service/user.service";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, pluralize } from "mongoose";
-import { MessageEntity } from "@core/entity/message.entity";
+import { HydratedMessageDocument, MessageEntity } from "@core/entity/message.entity";
+import { ConfigService } from "@core/service/config.service";
 
 /**
  * General message utilities.
@@ -16,6 +17,7 @@ export class MessageService {
   constructor(
     @InjectModel(MessageEntity.COLLECTION_NAME)
     private messageEntityModel: Model<MessageEntity>,
+    private readonly configService: ConfigService,
     private readonly userService: UserService
   ) {}
 
@@ -54,7 +56,7 @@ export class MessageService {
 
   public async recordMessage(
     context: Context<Update.MessageUpdate>
-  ): Promise<void> {
+  ): Promise<HydratedMessageDocument | void> {
     if (!context.message || !context.text) {
       return;
     }
@@ -83,8 +85,32 @@ export class MessageService {
       message.replyToMessageId = context.message.reply_to_message.message_id;
     }
 
-    this.messageEntityModel.create(message).catch((error) => {
+    return this.messageEntityModel.create(message).catch((error) => {
       this.logger.error("Failed to record message:", error);
+    });
+  }
+
+  public async recordBotMessage(
+    chatId: number,
+    messageId: number,
+    text: string,
+    replyToMessageId: number | null,
+    date: number
+  ): Promise<HydratedMessageDocument | void> {
+    const message: MessageEntity = {
+      chatId: chatId,
+      messageId: messageId,
+      userId: this.configService.botId,
+      text: text,
+      date: new Date(date * 1000),
+    };
+
+    if (replyToMessageId) {
+      message.replyToMessageId = replyToMessageId;
+    }
+
+    return this.messageEntityModel.create(message).catch((error) => {
+      this.logger.error("Failed to record bot message:", error);
     });
   }
 
