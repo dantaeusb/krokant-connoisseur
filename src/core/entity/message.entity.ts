@@ -29,7 +29,7 @@ export class MessageEntity {
   forwardedFromUserId?: number;
 
   // No need for prop its managed by timestamps: true
-  createdAt: Date;
+  createdAt?: Date;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(MessageEntity);
