@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import {
+  ContentListUnion,
   GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
@@ -13,7 +14,7 @@ export class GeminiService {
   private static FALLBACK_SYSTEM_PROMPT =
     "You are a friendly and helpful assistant.";
 
-  private readonly logger = new Logger("Character/GeminiService");
+  private readonly logger = new Logger(GeminiService.name);
 
   private readonly googleGenAI: GoogleGenAI;
   private readonly safetySettings: Array<SafetySetting> = [
@@ -56,7 +57,7 @@ export class GeminiService {
   }
 
   public async good(
-    prompt: string,
+    prompt: ContentListUnion,
     systemPrompt?: string
   ): Promise<string | null> {
     const result = await this.googleGenAI.models.generateContent({
@@ -64,7 +65,6 @@ export class GeminiService {
       contents: prompt,
       config: {
         candidateCount: 1,
-        maxOutputTokens: 1500,
         safetySettings: this.safetySettings,
         systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
       },
@@ -76,7 +76,7 @@ export class GeminiService {
   }
 
   public async quick(
-    prompt: string,
+    prompt: ContentListUnion,
     systemPrompt?: string
   ): Promise<string | null> {
     const result = await this.googleGenAI.models.generateContent({
@@ -84,7 +84,6 @@ export class GeminiService {
       contents: prompt,
       config: {
         candidateCount: 1,
-        maxOutputTokens: 250,
         safetySettings: this.safetySettings,
         systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
       },

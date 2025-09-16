@@ -4,8 +4,7 @@ import {
   On,
   Update,
   Ctx,
-  Mention,
-  Next,
+  Next
 } from "nestjs-telegraf";
 import { Telegraf, Context } from "telegraf";
 import { ClankerBotName } from "@/app.constants";
@@ -13,6 +12,7 @@ import { Logger } from "@nestjs/common";
 import { CharacterService } from "@character/service/character.service";
 import { Update as TelegramUpdate } from "telegraf/types";
 import { TriggerService } from "@character/service/trigger.service";
+import { MessageService } from "@core/service/message.service";
 
 @Update()
 export class TalkingController {
@@ -22,7 +22,8 @@ export class TalkingController {
     @InjectBot(ClankerBotName)
     private readonly bot: Telegraf<Context>,
     private readonly characterService: CharacterService,
-    private readonly triggerService: TriggerService
+    private readonly triggerService: TriggerService,
+    private readonly messageService: MessageService
   ) {}
 
   @On("message")
@@ -51,6 +52,11 @@ export class TalkingController {
     if (botWasMentioned && this.triggerService.isTriggered(1)) {
       this.logger.log("Triggered by mention");
 
+      await this.messageService.getMessageChain(
+        context.chat.id,
+        context.message.message_id
+      );
+
       const response = await this.characterService.respond(context.text);
       await context.reply(response, {
         reply_parameters: {
@@ -65,6 +71,11 @@ export class TalkingController {
 
     if (this.triggerService.triggered(context.text)) {
       this.logger.log("Triggered by keyword");
+
+      await this.messageService.getMessageChain(
+        context.chat.id,
+        context.message.message_id
+      );
 
       const response = await this.characterService.respond(context.text);
       await context.reply(response, {

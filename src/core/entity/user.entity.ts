@@ -6,11 +6,22 @@ import mongoose from "mongoose";
 
 @Schema({ timestamps: true })
 export class UserEntity {
+  public static COLLECTION_NAME = "user";
+
   @Prop({ required: true, index: true })
   chatId: number;
 
   @Prop({ required: true, index: true })
   userId: number;
+
+  /**
+   * Do not log activity and messages for this user
+   */
+  @Prop({ default: false })
+  ignore: boolean;
+
+  @Prop()
+  name: string;
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: "CharacterEntity" })
   character: PersonEntity;

@@ -2,6 +2,8 @@ import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 
 @Schema({ timestamps: true })
 export class LanguageWarnEntity {
+  public static COLLECTION_NAME = "language_warn";
+
   @Prop({ required: true, index: true })
   chatId: number;
 

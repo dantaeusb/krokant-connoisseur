@@ -2,6 +2,8 @@ import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 
 @Schema({ timestamps: true })
 export class WarnEntity {
+  public static COLLECTION_NAME = "warn";
+
   @Prop({ required: true, index: true })
   chatId: number;
 

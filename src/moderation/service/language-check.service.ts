@@ -36,7 +36,7 @@ export class LanguageCheckService {
   constructor(
     @InjectBot(ClankerBotName)
     private readonly bot: Telegraf<Context>,
-    @InjectModel(LanguageWarnEntity.name)
+    @InjectModel(LanguageWarnEntity.COLLECTION_NAME)
     private readonly languageWarnEntityModel: Model<LanguageWarnEntity>,
     private readonly moderationService: ModerationService
   ) {

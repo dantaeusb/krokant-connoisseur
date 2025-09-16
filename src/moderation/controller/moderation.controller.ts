@@ -272,7 +272,6 @@ export class ModerationController {
     if (rephrase) {
       answer = await this.characterService.rephrase(
         answer,
-        `${context.from.first_name} ${context.from.last_name ?? ""}`
       );
     }
 

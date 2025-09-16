@@ -6,21 +6,18 @@ import { LanguageCheckService } from "./service/language-check.service";
 import { ProfanityCheckService } from "./service/profanity-check.service";
 import { LinksCheckService } from "./service/links-check.service";
 import { TranslationService } from "./service/translation.service";
-import { BanEntity, BanSchema } from "./entity/ban.entity";
-import { WarnEntity, WarnSchema } from "./entity/warn.entity";
-import {
-  LanguageWarnEntity,
-  LanguageWarnSchema,
-} from "./entity/language-warn.entity";
+import { BanSchema } from "./entity/ban.entity";
+import { WarnSchema } from "./entity/warn.entity";
+import { LanguageWarnSchema } from "./entity/language-warn.entity";
 import { CoreModule } from "@core/core.module";
 import { CharacterModule } from "@character/character.module";
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: BanEntity.name, schema: BanSchema }]),
-    MongooseModule.forFeature([{ name: WarnEntity.name, schema: WarnSchema }]),
+    MongooseModule.forFeature([{ name: "ban", schema: BanSchema }]),
+    MongooseModule.forFeature([{ name: "warn", schema: WarnSchema }]),
     MongooseModule.forFeature([
-      { name: LanguageWarnEntity.name, schema: LanguageWarnSchema },
+      { name: "language_warn", schema: LanguageWarnSchema },
     ]),
     CoreModule,
     CharacterModule,

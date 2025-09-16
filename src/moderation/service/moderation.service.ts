@@ -23,9 +23,9 @@ export class ModerationService {
   constructor(
     @InjectBot(ClankerBotName) private readonly bot: Telegraf<Context>,
     private readonly userService: UserService,
-    @InjectModel(WarnEntity.name)
+    @InjectModel(WarnEntity.COLLECTION_NAME)
     private readonly warnEntityModel: Model<WarnEntity>,
-    @InjectModel(BanEntity.name)
+    @InjectModel(BanEntity.COLLECTION_NAME)
     private readonly banEntityModel: Model<BanEntity>
   ) {}
 

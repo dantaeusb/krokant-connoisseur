@@ -7,7 +7,12 @@ import { TriggerService } from "@character/service/trigger.service";
 
 @Module({
   imports: [CoreModule],
-  providers: [TalkingController, GeminiService, CharacterService, TriggerService],
+  providers: [
+    TalkingController,
+    GeminiService,
+    CharacterService,
+    TriggerService,
+  ],
   exports: [CharacterService],
 })
 export class CharacterModule {}

@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@core/service/config.service";
 import { GeminiService } from "./gemini.service";
+import { UserEntity } from "@core/entity/user.entity";
 
 @Injectable()
 export class CharacterService {
@@ -9,11 +10,13 @@ export class CharacterService {
     private readonly geminiService: GeminiService
   ) {}
 
-  public async respond(text: string, name?: string): Promise<string> {
+  public async respond(text: string, toUser?: UserEntity): Promise<string> {
     let prompt = `Reply to following message:${text}`;
 
-    if (name) {
-      prompt = `You are replying to ${name}\n` + prompt;
+    if (toUser) {
+      prompt =
+        `You are replying to ${toUser.name} ${toUser.name}\n` +
+        prompt;
     }
 
     const chatConfig = await this.configService.getConfig();
@@ -30,11 +33,13 @@ export class CharacterService {
     return result;
   }
 
-  public async rephrase(text: string, name?: string): Promise<string> {
+  public async rephrase(text: string, toUser?: UserEntity): Promise<string> {
     let prompt = `Rephrase the following message: ${text}`;
 
-    if (name) {
-      prompt = `You are replying to ${name}\n` + prompt;
+    if (toUser) {
+      prompt =
+        `You are replying to ${toUser.name} ${toUser.name}\n` +
+        prompt;
     }
 
     const chatConfig = await this.configService.getConfig();
