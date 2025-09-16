@@ -7,10 +7,12 @@ import { Model } from "mongoose";
 export class ConfigService {
   private readonly logger = new Logger(ConfigService.name);
 
+  public readonly botId = parseInt(process.env.BOT_ID || "0", 10);
   private readonly configCache: Map<number, ConfigEntity> = new Map();
 
   constructor(
-    @InjectModel(ConfigEntity.COLLECTION_NAME) private configModel: Model<ConfigEntity>
+    @InjectModel(ConfigEntity.COLLECTION_NAME)
+    private configModel: Model<ConfigEntity>
   ) {
     void this.reloadConfig();
   }

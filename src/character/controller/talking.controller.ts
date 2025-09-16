@@ -1,11 +1,4 @@
-import {
-  InjectBot,
-  Message,
-  On,
-  Update,
-  Ctx,
-  Next
-} from "nestjs-telegraf";
+import { InjectBot, Message, On, Update, Ctx, Next } from "nestjs-telegraf";
 import { Telegraf, Context } from "telegraf";
 import { ClankerBotName } from "@/app.constants";
 import { Logger } from "@nestjs/common";
@@ -13,7 +6,14 @@ import { CharacterService } from "@character/service/character.service";
 import { Update as TelegramUpdate } from "telegraf/types";
 import { TriggerService } from "@character/service/trigger.service";
 import { MessageService } from "@core/service/message.service";
+import { UserService } from "@core/service/user.service";
 
+/**
+ * Handles character talking and responses.
+ * @todo: Find a way to remove deleted messages.
+ * @todo: Update messages when edited.
+ * @todo: Prepare summaries and clean up old messages.
+ */
 @Update()
 export class TalkingController {
   private readonly logger = new Logger("Character/TalkingController");
@@ -23,7 +23,8 @@ export class TalkingController {
     private readonly bot: Telegraf<Context>,
     private readonly characterService: CharacterService,
     private readonly triggerService: TriggerService,
-    private readonly messageService: MessageService
+    private readonly messageService: MessageService,
+    private readonly userService: UserService
   ) {}
 
   @On("message")
@@ -40,6 +41,7 @@ export class TalkingController {
       return next();
     }
 
+    let triggered = false;
     let botWasMentioned: boolean = context
       .entities("mention")
       .some((entity) => entity.fragment === context.botInfo.username);
@@ -51,43 +53,41 @@ export class TalkingController {
 
     if (botWasMentioned && this.triggerService.isTriggered(1)) {
       this.logger.log("Triggered by mention");
-
-      await this.messageService.getMessageChain(
-        context.chat.id,
-        context.message.message_id
-      );
-
-      const response = await this.characterService.respond(context.text);
-      await context.reply(response, {
-        reply_parameters: {
-          chat_id: context.chat.id,
-          message_id: message.message_id,
-          allow_sending_without_reply: false,
-        },
-      });
-
-      return next();
+      triggered = true;
     }
 
     if (this.triggerService.triggered(context.text)) {
       this.logger.log("Triggered by keyword");
+      triggered = true;
+    }
 
-      await this.messageService.getMessageChain(
-        context.chat.id,
-        context.message.message_id
-      );
-
-      const response = await this.characterService.respond(context.text);
-      await context.reply(response, {
-        reply_parameters: {
-          chat_id: context.chat.id,
-          message_id: message.message_id,
-          allow_sending_without_reply: false,
-        },
-      });
-
+    if (!triggered) {
       return next();
     }
+
+    const user = await this.userService.getUser(
+      context.chat.id,
+      message.from.id
+    );
+
+    if (!user) {
+      this.logger.error("Could not find user.");
+      return next();
+    }
+
+    const response = await this.characterService.respond(
+      context.chat.id,
+      message.message_id,
+      context.text,
+      user
+    );
+    await context.reply(response, {
+      reply_parameters: {
+        chat_id: context.chat.id,
+        message_id: message.message_id,
+        allow_sending_without_reply: false,
+      },
+    });
 
     return next();
   }

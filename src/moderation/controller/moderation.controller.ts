@@ -100,6 +100,18 @@ export class ModerationController {
     await this.moderationService.unbanUser(message.message_id, context.from.id);
   }
 
+  @Command("permaban")
+  @UseGuards(AdminGuard)
+  async permaban(
+    @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
+    @Message() message: TelegramUpdate.MessageUpdate["message"]
+  ): Promise<void> {
+    await this.moderationService.permaBanUser(
+      message.message_id,
+      context.from.id
+    );
+  }
+
   @On(["message", "edited_message"])
   async messageLanguageCheck(
     @Ctx()
