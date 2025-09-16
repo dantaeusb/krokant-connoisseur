@@ -88,12 +88,14 @@ export class CharacterService {
   private chainToPrompt(chain: Array<MessageEntity>): Array<Content> {
     const botId = this.configService.botId;
 
-    return chain.map((message) => {
-      return {
-        role: message.userId !== botId ? "user" : "model",
-        parts: [{ text: message.text }],
-      };
-    });
+    return chain
+      .map((message) => {
+        return {
+          role: message.userId !== botId ? "user" : "model",
+          parts: [{ text: message.text }],
+        };
+      })
+      .reverse();
   }
 
   private async fallback(): Promise<string> {

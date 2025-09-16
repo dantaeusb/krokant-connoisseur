@@ -1,16 +1,20 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { ModerationService, WarnResult } from "./moderation.service";
-import emojiRegex from "emoji-regex";
 import { Context, Telegraf } from "telegraf";
 import { InjectBot } from "nestjs-telegraf";
 import { ClankerBotName } from "@/app.constants";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { LanguageWarnEntity } from "@moderation/entity/language-warn.entity";
+// @todo: https://github.com/mathiasbynens/emoji-regex/issues/117
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const getEmojiRegex = require("emoji-regex");
 
 @Injectable()
 export class LanguageCheckService {
+  private readonly logger = new Logger(LanguageCheckService.name);
+
   private static ASCII_CHARACTERS = "\x20-\x7E"; // Basic ASCII characters
   private static ENGLISH_LETTERS = "A-Za-z"; // English letters only
   private static RUSSIAN_LETTERS = "\u0400-\u04FF"; // Cyrillic for Russian
@@ -30,6 +34,8 @@ export class LanguageCheckService {
   };
 
   private static LANGUAGE_WARN_THRESHOLD = [3, 7, 8];
+
+  private emojiRegex: RegExp = getEmojiRegex() as RegExp;
 
   private languagePatterns: Record<string, RegExp> = {};
 
@@ -68,6 +74,10 @@ export class LanguageCheckService {
     languages: string[] = ["en"]
   ): boolean {
     const textWithoutEmojis = this.removeEmojis(text);
+
+    if (textWithoutEmojis.trim() === "") {
+      return false;
+    }
 
     const key = [...languages].sort().join("_");
     const pattern = this.languagePatterns[key];
@@ -128,8 +138,8 @@ export class LanguageCheckService {
     return LanguageWarnResult.NONE;
   }
 
-  private removeEmojis(text: string): string {
-    return text.replace(emojiRegex as unknown as RegExp, "");
+  public removeEmojis(text: string): string {
+    return text.replace(this.emojiRegex, "");
   }
 
   @Cron("*/30 * * * *")

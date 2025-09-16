@@ -88,6 +88,8 @@ export class ModerationController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
+    this.logger.log("Handling /ban command");
+
     await this.moderationService.banUser(message.message_id, context.from.id);
   }
 
@@ -97,6 +99,8 @@ export class ModerationController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
+    this.logger.log("Handling /unban command");
+
     await this.moderationService.unbanUser(message.message_id, context.from.id);
   }
 
@@ -124,6 +128,8 @@ export class ModerationController {
       | TelegramUpdate.EditedMessageUpdate["edited_message"],
     @Next() next: () => Promise<void>
   ): Promise<void> {
+    this.logger.log("Handling message for language check");
+
     if (!context.text || context.from.is_bot) {
       return next();
     }
@@ -258,6 +264,8 @@ export class ModerationController {
       | TelegramUpdate.EditedMessageUpdate["edited_message"],
     @Next() next: () => Promise<void>
   ): Promise<void> {
+    this.logger.log("Handling message for profanity and links check");
+
     if (!context.text) {
       return next();
     }
@@ -282,9 +290,7 @@ export class ModerationController {
     const rephrase = config ? !config.yapping : false;
 
     if (rephrase) {
-      answer = await this.characterService.rephrase(
-        answer,
-      );
+      answer = await this.characterService.rephrase(answer);
     }
 
     return context.reply(this.escapeMarkdownV2(answer), {
