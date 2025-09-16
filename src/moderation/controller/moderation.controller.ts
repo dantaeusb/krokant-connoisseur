@@ -287,10 +287,10 @@ export class ModerationController {
     answer: string
   ) {
     const config = await this.configService.getConfig(context.chat.id);
-    const rephrase = config ? !config.yapping : false;
+    const rephrase = config ? !!config.yapping : false;
 
     if (rephrase) {
-      answer = await this.characterService.rephrase(answer);
+      answer = await this.characterService.rephrase(context.chat.id, answer);
     }
 
     return context.reply(this.escapeMarkdownV2(answer), {

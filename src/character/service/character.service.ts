@@ -50,11 +50,11 @@ export class CharacterService {
 
     this.logger.log(promptList);
 
-    const chatConfig = await this.configService.getConfig();
+    const chatConfig = await this.configService.getConfig(chatId);
 
     const result = await this.geminiService.good(
       promptList,
-      chatConfig.systemPrompt
+      chatConfig.characterPrompt
     );
 
     if (!result) {
@@ -64,18 +64,22 @@ export class CharacterService {
     return result;
   }
 
-  public async rephrase(text: string, toUser?: UserEntity): Promise<string> {
+  public async rephrase(
+    chatId: number,
+    text: string,
+    toUser?: UserEntity
+  ): Promise<string> {
     let prompt = `Rephrase the following message: ${text}`;
 
     if (toUser) {
       prompt = `You are replying to ${toUser.name}\n` + prompt;
     }
 
-    const chatConfig = await this.configService.getConfig();
+    const chatConfig = await this.configService.getConfig(chatId);
 
     const result = await this.geminiService.quick(
       prompt,
-      chatConfig.systemPrompt
+      chatConfig.characterPrompt
     );
 
     if (!result) {

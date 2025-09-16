@@ -1,5 +1,9 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 
+/**
+ * Chat config, effectively mongo just adds persistence to in-memory config.
+ * Use `/reload` command to reload from DB if changes are made directly.
+ */
 @Schema({ timestamps: true })
 export class ConfigEntity {
   public static COLLECTION_NAME = "config";
@@ -14,11 +18,31 @@ export class ConfigEntity {
   @Prop({ required: true, default: true })
   yapping: boolean;
 
-  @Prop()
+  @Prop({ default: "" })
   characterExtraPrompt: string;
 
+  /**
+   * This will be used as a system prompt for the character actions,
+   * i.e. replies and rephrasings, or any other user interactions if
+   * enabled.
+   */
   @Prop({ default: "" })
-  systemPrompt: string;
+  characterPrompt: string;
+
+  /**
+   * This will be used as a system prompt for the chat quality index
+   * analysis, that supposed to sentiment-analyze the chat with
+   * different metrics.
+   */
+  @Prop({ default: "" })
+  chatQualityIndexPrompt: string;
+
+  /**
+   * This will be used as a system prompt for the summaries generation
+   * when messages are over context or lifetime limit.
+   */
+  @Prop({ default: "" })
+  summarizerPrompt: string;
 }
 
 export const ConfigSchema = SchemaFactory.createForClass(ConfigEntity);

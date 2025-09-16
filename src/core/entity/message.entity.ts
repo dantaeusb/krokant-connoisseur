@@ -3,7 +3,7 @@ import { HydratedDocument } from "mongoose";
 
 export type HydratedMessageDocument = HydratedDocument<MessageEntity>
 
-@Schema()
+@Schema({ timestamps: true })
 export class MessageEntity {
   public static COLLECTION_NAME = "message";
 
@@ -27,6 +27,9 @@ export class MessageEntity {
 
   @Prop()
   forwardedFromUserId?: number;
+
+  // No need for prop its managed by timestamps: true
+  createdAt: Date;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(MessageEntity);
@@ -35,3 +38,5 @@ MessageSchema.index({ messageId: 1 });
 MessageSchema.index({ chatId: 1 });
 // All messages from a user in a chat
 MessageSchema.index({ userId: 1 });
+// Expire messages after 30 days
+MessageSchema.index({ createdAt: 1 }, { expireAfterSeconds: 2592000 });
