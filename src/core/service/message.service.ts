@@ -4,7 +4,10 @@ import { Update } from "telegraf/types";
 import { UserService } from "@core/service/user.service";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, pluralize } from "mongoose";
-import { HydratedMessageDocument, MessageEntity } from "@core/entity/message.entity";
+import {
+  HydratedMessageDocument,
+  MessageEntity,
+} from "@core/entity/message.entity";
 import { ConfigService } from "@core/service/config.service";
 
 /**
@@ -112,6 +115,17 @@ export class MessageService {
     return this.messageEntityModel.create(message).catch((error) => {
       this.logger.error("Failed to record bot message:", error);
     });
+  }
+
+  public async getLatestMessages(
+    chatId: number,
+    limit: number
+  ): Promise<MessageEntity[]> {
+    return this.messageEntityModel
+      .find({ chatId: chatId })
+      .sort({ date: -1 })
+      .limit(limit)
+      .exec();
   }
 
   public async getMessageChain(

@@ -67,6 +67,29 @@ export class GeminiService {
         candidateCount: 1,
         safetySettings: this.safetySettings,
         systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
+        temperature: 1,
+        topP: 0.8,
+      },
+    });
+
+    this.logger.log(result.candidates);
+
+    return result.text ?? null;
+  }
+
+  public async regular(
+    prompt: ContentListUnion,
+    systemPrompt?: string
+  ): Promise<string | null> {
+    const result = await this.googleGenAI.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        candidateCount: 1,
+        safetySettings: this.safetySettings,
+        systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
+        temperature: 0.9,
+        topP: 0.85,
       },
     });
 
@@ -86,6 +109,8 @@ export class GeminiService {
         candidateCount: 1,
         safetySettings: this.safetySettings,
         systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
+        temperature: 0.8,
+        topP: 0.95,
       },
     });
 

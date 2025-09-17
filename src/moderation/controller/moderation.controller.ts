@@ -4,12 +4,15 @@ import {
   Ctx,
   InjectBot,
   Message,
-  On,
-  Sender,
-  Update,
   Next,
+  On,
+  Update,
 } from "nestjs-telegraf";
-import { ModerationService, WarnResult } from "../service/moderation.service";
+import {
+  BanResult,
+  ModerationService,
+  WarnResult,
+} from "../service/moderation.service";
 import { Context, Telegraf } from "telegraf";
 import { ClankerBotName } from "@/app.constants";
 import { AdminGuard } from "@core/guard/admin.guard";
@@ -22,6 +25,7 @@ import { Update as TelegramUpdate } from "telegraf/types";
 import { CharacterService } from "@character/service/character.service";
 import { MessageService } from "@core/service/message.service";
 import { ConfigService } from "@core/service/config.service";
+import { FormatterService } from "@core/service/formatter.service";
 
 @Update()
 export class ModerationController {
@@ -35,7 +39,8 @@ export class ModerationController {
     private readonly translationService: TranslationService,
     private readonly languageCheckService: LanguageCheckService,
     private readonly messageService: MessageService,
-    private readonly characterService: CharacterService
+    private readonly characterService: CharacterService,
+    private readonly formatterService: FormatterService
   ) {}
 
   @Command("warn")
@@ -90,7 +95,27 @@ export class ModerationController {
   ): Promise<void> {
     this.logger.log("Handling /ban command");
 
-    await this.moderationService.banUser(message.message_id, context.from.id);
+    const targetUserId = await this.messageService.getTargetUserFromMessage(
+      context
+    );
+
+    if (!targetUserId) {
+      this.logger.error("Could not find target user to ban.");
+      return;
+    }
+
+    const result = await this.moderationService.banUser(
+      message.chat.id,
+      message.from.id
+    );
+
+    if (result === BanResult.BANNED) {
+      this.reply(context, message, "User has been banned.");
+    } else if (result === BanResult.PERMA_BANNED) {
+      this.reply(context, message, "User has been banned forever.");
+    } else {
+      this.reply(context, message, "Failed to ban user.");
+    }
   }
 
   @Command("unban")
@@ -101,7 +126,23 @@ export class ModerationController {
   ): Promise<void> {
     this.logger.log("Handling /unban command");
 
-    await this.moderationService.unbanUser(message.message_id, context.from.id);
+    const targetUserId = await this.messageService.getTargetUserFromMessage(
+      context
+    );
+
+    if (!targetUserId) {
+      this.logger.error("Could not find target user to unban.");
+      return;
+    }
+
+    await this.moderationService
+      .unbanUser(message.chat.id, message.from.id)
+      .then(() => {
+        this.reply(context, message, "User has been unbanned.");
+      })
+      .catch(() => {
+        this.reply(context, message, "Failed to unban user.");
+      });
   }
 
   @Command("permaban")
@@ -275,6 +316,50 @@ export class ModerationController {
     return next();
   }
 
+  @Command("warns")
+  async warns(
+    @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
+    @Message() message: TelegramUpdate.MessageUpdate["message"]
+  ): Promise<void> {
+    this.logger.log("Handling /warns command");
+
+    const warn = await this.moderationService.getWarns(
+      message.chat.id,
+      context.from.id
+    );
+
+    if (warn !== null) {
+      this.reply(context, message, `You have ${warn.count} warning(s).`);
+    } else {
+      this.reply(context, message, "You have no warnings.");
+    }
+  }
+
+  @Command("bans")
+  async bans(
+    @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
+    @Message() message: TelegramUpdate.MessageUpdate["message"]
+  ): Promise<void> {
+    this.logger.log("Handling /warns command");
+
+    const ban = await this.moderationService.getBans(
+      message.chat.id,
+      context.from.id
+    );
+
+    const duration = this.moderationService.getBanDuration(ban?.severity || 0);
+
+    if (ban !== null) {
+      this.reply(
+        context,
+        message,
+        `Your last ban had severity of ${ban.severity}, which is ${duration}.`
+      );
+    } else {
+      this.reply(context, message, "You have no bans.");
+    }
+  }
+
   private async reply(
     @Ctx()
     context:
@@ -293,19 +378,13 @@ export class ModerationController {
       answer = await this.characterService.rephrase(context.chat.id, answer);
     }
 
-    return context.reply(this.escapeMarkdownV2(answer), {
-      parse_mode: "MarkdownV2",
+    return context.reply(this.formatterService.escapeMarkdownV2(answer), {
+      parse_mode: "Markdown",
       reply_parameters: {
         chat_id: context.chat.id,
         message_id: message.message_id,
         allow_sending_without_reply: true,
       },
     });
-  }
-
-  private escapeMarkdownV2(text: string): string {
-    // Escape characters that are reserved in MarkdownV2 but not typically part of markdown formatting.
-    // This avoids breaking formatting from Gemini while preventing Telegram API errors.
-    return text.replace(/([>#+\-=|{}.!])/g, "\\$1");
   }
 }

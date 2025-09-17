@@ -14,6 +14,9 @@ export class UserEntity {
   @Prop({ required: true, index: true })
   userId: number;
 
+  @Prop()
+  username?: string;
+
   /**
    * Do not log activity and messages for this user
    */

@@ -21,8 +21,8 @@ Summarized messages can still contain your information (prompt will be designed 
 
 ### User commands
 
-- `/ignore` - bot won't record your messages, and won't talk to you
-- `/unignore` - bot will start recording your messages again
+- `/ignoreme` - bot won't record your messages, and won't talk to you
+- `/unignoreme` - bot will start recording your messages again
 - `/forgetme` - bot will delete all your messages and data it has about you, also marks you as ignored
 - `/warns` - shows your warnings
 - `/bans` - shows your bans (bans are 3^n so if your last is not expired you can see how long the next one will take)

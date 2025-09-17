@@ -9,16 +9,20 @@ export class UserService {
   private logger = new Logger("Core/UserService");
 
   constructor(
-    @InjectModel(UserEntity.COLLECTION_NAME) private userEntityModel: Model<UserEntity>
+    @InjectModel(UserEntity.COLLECTION_NAME)
+    private userEntityModel: Model<UserEntity>
   ) {}
 
-  public async getUserByUsername(chatId: number, username: string) {
-    return this.userEntityModel
-      .findOne({
-        chatId: chatId,
-        username: username,
-      })
-      .exec();
+  public getUniqueIdentifier(user?: UserEntity): string {
+    if (!user) {
+      return "Unknown";
+    }
+
+    if (user.username) {
+      return `@${user.username}`;
+    }
+
+    return `ID:${user.userId}`;
   }
 
   public async getUser(
@@ -49,5 +53,32 @@ export class UserService {
     }
 
     return user;
+  }
+
+  public async getUsers(
+    chatId: number,
+    userIds: number[]
+  ): Promise<UserEntity[]> {
+    return this.userEntityModel
+      .find({
+        chatId: chatId,
+        userId: { $in: userIds },
+      })
+      .exec();
+  }
+
+  public async getUserByUsername(chatId: number, username: string) {
+    return this.userEntityModel
+      .findOne({
+        chatId: chatId,
+        username: username,
+      })
+      .exec();
+  }
+
+  public async setIgnore(chatId: number, userId: number, ignore: boolean) {
+    return this.userEntityModel
+      .updateOne({ chatId: chatId, userId: userId }, { ignore: ignore })
+      .exec();
   }
 }

@@ -110,10 +110,16 @@ export class LanguageCheckService {
     languageWarning.count++;
     await languageWarning.save();
 
+    const maxCount =
+      LanguageCheckService.LANGUAGE_WARN_THRESHOLD[
+        LanguageCheckService.LANGUAGE_WARN_THRESHOLD.length - 1
+      ];
+
     if (
       LanguageCheckService.LANGUAGE_WARN_THRESHOLD.includes(
         languageWarning.count
-      )
+      ) ||
+      languageWarning.count >= maxCount
     ) {
       const result = await this.moderationService.warnUser(
         chatId,
@@ -121,21 +127,18 @@ export class LanguageCheckService {
         "Use English."
       );
 
-      const maxCount =
-        LanguageCheckService.LANGUAGE_WARN_THRESHOLD[
-          LanguageCheckService.LANGUAGE_WARN_THRESHOLD.length - 1
-        ];
-
-      if (
-        result === WarnResult.BANNED ||
-        result === WarnResult.PERMA_BANNED ||
-        languageWarning.count === maxCount
-      ) {
+      if (result === WarnResult.BANNED || result === WarnResult.PERMA_BANNED) {
         await languageWarning.deleteOne();
+
+        if (result === WarnResult.PERMA_BANNED) {
+          return LanguageWarnResult.PERMA_BANNED;
+        }
+
+        return LanguageWarnResult.PERMA_BANNED;
       }
     }
 
-    return LanguageWarnResult.NONE;
+    return LanguageWarnResult.SOFT_WARNED;
   }
 
   public removeEmojis(text: string): string {

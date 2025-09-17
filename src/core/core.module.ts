@@ -8,6 +8,7 @@ import { ConfigSchema } from "./entity/config.entity";
 import { ConfigController } from "./controller/config.controller";
 import { MessageSchema } from "./entity/message.entity";
 import { LoggingController } from "./controller/logging.controller";
+import { FormatterService } from "./service/formatter.service";
 
 @Module({
   imports: [
@@ -23,7 +24,8 @@ import { LoggingController } from "./controller/logging.controller";
     MessageService,
     UserService,
     ConfigService,
+    FormatterService,
   ],
-  exports: [MessageService, UserService, ConfigService],
+  exports: [MessageService, UserService, ConfigService, FormatterService],
 })
 export class CoreModule {}

@@ -43,7 +43,7 @@ export class ConfigService {
   }
 
   public async getConfig(chatId?: number) {
-    if (chatId && this.configCache.has(chatId)) {
+    if (/*chatId && */ this.configCache.has(chatId)) {
       return this.configCache.get(chatId);
     }
 
@@ -73,6 +73,20 @@ export class ConfigService {
       config.yapping = yapping;
       await this.configModel
         .updateOne({ chatId: chatId }, { yapping: yapping })
+        .exec();
+      this.configCache.set(chatId, config);
+    }
+
+    return config;
+  }
+
+  public async setDebugging(chatId: number, debug: boolean) {
+    const config = await this.getConfig(chatId);
+
+    if (config) {
+      config.debugMode = debug;
+      await this.configModel
+        .updateOne({ chatId: chatId }, { debugMode: debug })
         .exec();
       this.configCache.set(chatId, config);
     }

@@ -48,6 +48,8 @@ export class LoggingController {
               .then(() => resolve())
               .catch(reject);
           }
+
+          return resolve();
         })
         .catch(reject);
     })

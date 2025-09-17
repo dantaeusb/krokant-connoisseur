@@ -20,7 +20,6 @@ export class ConfigController {
   @UseGuards(AdminGuard)
   async reload(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
-    @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
     this.logger.log("Handling /reload command");
 
@@ -35,11 +34,46 @@ export class ConfigController {
       });
   }
 
+  @Command("debug")
+  @UseGuards(AdminGuard)
+  async debug(
+    @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
+  ): Promise<void> {
+    this.logger.log("Handling /debug command");
+
+    await this.configService
+      .setDebugging(context.chat.id, true)
+      .then(() => {
+        context.react("👌");
+      })
+      .catch((error) => {
+        this.logger.error("Failed to update config", error);
+        context.react("🤷‍♀");
+      });
+  }
+
+  @Command("stop_debug")
+  @UseGuards(AdminGuard)
+  async stopDebug(
+    @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
+  ): Promise<void> {
+    this.logger.log("Handling /stop_debug command");
+
+    await this.configService
+      .setDebugging(context.chat.id, false)
+      .then(() => {
+        context.react("👌");
+      })
+      .catch((error) => {
+        this.logger.error("Failed to update config", error);
+        context.react("🤷‍♀");
+      });
+  }
+
   @Command("sybau")
   @UseGuards(AdminGuard)
   async sybau(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
-    @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
     this.logger.log(
       "Handling /sybau command (reduce LLM talking & stop rephrasing)"
@@ -55,6 +89,8 @@ export class ConfigController {
 
     if (result) {
       context.react("👌");
+    } else {
+      context.react("🤷‍♀");
     }
   }
 
@@ -78,6 +114,8 @@ export class ConfigController {
 
     if (result) {
       context.react("👌");
+    } else {
+      context.react("🤷‍♀");
     }
   }
 }

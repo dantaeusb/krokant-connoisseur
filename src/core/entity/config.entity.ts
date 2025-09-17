@@ -43,6 +43,9 @@ export class ConfigEntity {
    */
   @Prop({ default: "" })
   summarizerPrompt: string;
+
+  @Prop({ default: false })
+  debugMode: boolean;
 }
 
 export const ConfigSchema = SchemaFactory.createForClass(ConfigEntity);
