@@ -1,4 +1,16 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import {
+  PingGroupEntity,
+  PingGroupSchema,
+} from "@core/entity/ping-group.entity";
+import { HydratedDocument, Types } from "mongoose";
+
+export type ConfigDocument = HydratedDocument<
+  ConfigEntity,
+  {
+    pingGroups: Types.Subdocument<Types.ObjectId> & PingGroupEntity;
+  }
+>;
 
 /**
  * Chat config, effectively mongo just adds persistence to in-memory config.
@@ -43,6 +55,9 @@ export class ConfigEntity {
    */
   @Prop({ default: "" })
   summarizerPrompt: string;
+
+  @Prop([PingGroupSchema])
+  pingGroups: Array<PingGroupEntity>;
 
   @Prop({ default: false })
   debugMode: boolean;

@@ -77,6 +77,30 @@ export class ModerationService {
     return WarnResult.WARNED;
   }
 
+  public async muteUser(chatId: number, userId: number): Promise<boolean> {
+    try {
+      await this.bot.telegram.restrictChatMember(chatId, userId, {
+        permissions: {
+          can_send_messages: false,
+          can_send_polls: false,
+          can_send_other_messages: false,
+          can_add_web_page_previews: false,
+          can_change_info: false,
+          can_invite_users: false,
+          can_pin_messages: false,
+        },
+        // until_date: banTime > 0 ? Math.floor(banTime / 1000) : undefined,
+      });
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Failed to mute user ${userId} in chat ${chatId}`,
+        error
+      );
+      return false;
+    }
+  }
+
   public async banUser(
     chatId: number,
     userId: number,
@@ -100,12 +124,34 @@ export class ModerationService {
       )
       .exec();
 
-    const banTime = this.calculateBanDuration(banEntity);
+    const banEndTime = this.calculateBanEndTime(banEntity);
 
     try {
-      await this.bot.telegram.banChatMember(chatId, userId, banTime, {
-        revoke_messages: revoke,
-      });
+      if (banEndTime > 0) {
+        if (revoke) {
+          await this.bot.telegram.banChatMember(chatId, userId, banEndTime, {
+            revoke_messages: true,
+          });
+        } else {
+          await this.bot.telegram.restrictChatMember(chatId, userId, {
+            permissions: {
+              can_send_messages: false,
+              can_send_polls: false,
+              can_send_other_messages: false,
+              can_add_web_page_previews: false,
+              can_change_info: false,
+              can_invite_users: false,
+              can_pin_messages: false,
+            },
+            until_date: banEndTime,
+          });
+        }
+      } else {
+        await this.bot.telegram.banChatMember(chatId, userId, 0, {
+          revoke_messages: revoke,
+        });
+        return BanResult.PERMA_BANNED;
+      }
     } catch (error) {
       this.logger.error(
         `Failed to ban user ${userId} in chat ${chatId}`,
@@ -114,7 +160,7 @@ export class ModerationService {
       return BanResult.NONE;
     }
 
-    if (banTime > 0) {
+    if (banEndTime > 0) {
       return BanResult.BANNED;
     } else {
       return BanResult.PERMA_BANNED;
@@ -151,7 +197,7 @@ export class ModerationService {
       .exec();
   }
 
-  private calculateBanDuration(banEntity: BanEntity): number {
+  private calculateBanEndTime(banEntity: BanEntity): number {
     if (banEntity.severity >= 7) {
       return 0;
     }

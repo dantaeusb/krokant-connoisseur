@@ -26,6 +26,7 @@ import { CharacterService } from "@character/service/character.service";
 import { MessageService } from "@core/service/message.service";
 import { ConfigService } from "@core/service/config.service";
 import { FormatterService } from "@core/service/formatter.service";
+import { CommandsService } from "@core/service/commands.service";
 
 @Update()
 export class ModerationController {
@@ -34,6 +35,7 @@ export class ModerationController {
   constructor(
     @InjectBot(ClankerBotName)
     private readonly bot: Telegraf<Context>,
+    private readonly commandsService: CommandsService,
     private readonly configService: ConfigService,
     private readonly moderationService: ModerationService,
     private readonly translationService: TranslationService,
@@ -41,7 +43,31 @@ export class ModerationController {
     private readonly messageService: MessageService,
     private readonly characterService: CharacterService,
     private readonly formatterService: FormatterService
-  ) {}
+  ) {
+    Promise.all([
+      this.commandsService.extendCommands(
+        "all_chat_administrators",
+        [
+          { command: "warn", description: "Warn a user" },
+          { command: "ban", description: "Ban a user" },
+          { command: "unban", description: "Unban a user" },
+          { command: "permaban", description: "Permanently ban a user" },
+        ],
+        "Moderation"
+      ),
+      this.commandsService.extendCommands(
+        "all_group_chats",
+        [
+          { command: "warns", description: "Check your warnings" },
+          { command: "bans", description: "Check your bans" },
+        ],
+        "Moderation"
+      ),
+    ]).then(
+      () => this.logger.debug("Set moderation commands"),
+      (error) => this.logger.error("Failed to set bot commands:", error)
+    );
+  }
 
   @Command("warn")
   @UseGuards(AdminGuard)

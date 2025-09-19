@@ -57,6 +57,66 @@ export class MessageService {
     return null;
   }
 
+  /**
+   * Extracts command arguments from a message text.
+   * I.e. /ban 1 day -> ["1", "day"]
+   * @param text
+   */
+  public getCommandMessageArguments(text: string): Array<string> {
+    const parts = text.trim().split(" ");
+    if (parts.length <= 1) {
+      return [];
+    }
+    parts.shift();
+    return parts;
+  }
+
+  /**
+   * Warning! It's mutating the args array if the first arg looks like a handle!
+   * @param args
+   */
+  public extractCommandGroupHandleMut(args: string[]): string | null {
+    if (args.length === 0) {
+      return null;
+    }
+
+    let supposedHandle = args[0].trim();
+
+    if (supposedHandle.startsWith("!") && supposedHandle.length > 1) {
+      supposedHandle = supposedHandle.slice(1);
+    }
+
+    if (/^[a-zA-Z0-9_]{5,32}$/.test(supposedHandle)) {
+      args.shift();
+      return supposedHandle;
+    }
+
+    return null;
+  }
+
+  /**
+   * Warning! It's mutating the args array if the first arg looks like a handle!
+   * @param args
+   */
+  public extractCommandHandleMut(args: string[]): string | null {
+    if (args.length === 0) {
+      return null;
+    }
+
+    let supposedHandle = args[0].trim();
+
+    if (supposedHandle.startsWith("@") && supposedHandle.length > 1) {
+      supposedHandle = supposedHandle.slice(1);
+    }
+
+    if (/^[a-zA-Z0-9_]{5,32}$/.test(supposedHandle)) {
+      args.shift();
+      return supposedHandle;
+    }
+
+    return null;
+  }
+
   public async recordMessage(
     context: Context<Update.MessageUpdate>
   ): Promise<HydratedMessageDocument | void> {

@@ -17,6 +17,7 @@ import { MessageService } from "@core/service/message.service";
 import { UserService } from "@core/service/user.service";
 import { FormatterService } from "@core/service/formatter.service";
 import { AdminGuard } from "@core/guard/admin.guard";
+import { CommandsService } from "@core/service/commands.service";
 
 /**
  * Handles character talking and responses.
@@ -31,12 +32,49 @@ export class CharacterController {
   constructor(
     @InjectBot(ClankerBotName)
     private readonly bot: Telegraf<Context>,
+    private readonly commandsService: CommandsService,
     private readonly characterService: CharacterService,
     private readonly triggerService: TriggerService,
     private readonly messageService: MessageService,
     private readonly userService: UserService,
     private readonly formatterService: FormatterService
-  ) {}
+  ) {
+    Promise.all([
+      this.commandsService.extendCommands(
+        "all_chat_administrators",
+        [
+          {
+            command: "ignore_user",
+            description:
+              "Do not collect messages and do not respond to that user",
+          },
+          {
+            command: "unignore_user",
+            description: "Collect messages and respond to that user",
+          },
+        ],
+        "Character"
+      ),
+      this.commandsService.extendCommands(
+        "all_group_chats",
+        [
+          {
+            command: "ignoreme",
+            description: "Do not collect messages and respond to you",
+          },
+          {
+            command: "unignoreme",
+            description: "Collect messages and respond to you",
+          },
+          {
+            command: "forgetme",
+            description: "Delete all messages and information about you",
+          },
+        ],
+        "Character"
+      ),
+    ]);
+  }
 
   @On("message")
   public async messageReply(
