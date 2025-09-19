@@ -1,26 +1,11 @@
 import { Logger, UseGuards } from "@nestjs/common";
-import {
-  Command,
-  Ctx,
-  InjectBot,
-  Message,
-  Next,
-  On,
-  Update,
-} from "nestjs-telegraf";
-import {
-  BanResult,
-  ModerationService,
-  WarnResult,
-} from "../service/moderation.service";
+import { Command, Ctx, InjectBot, Message, Next, On, Update } from "nestjs-telegraf";
+import { BanResult, ModerationService, WarnResult } from "../service/moderation.service";
 import { Context, Telegraf } from "telegraf";
 import { ClankerBotName } from "@/app.constants";
 import { AdminGuard } from "@core/guard/admin.guard";
 import { TranslationService } from "@moderation/service/translation.service";
-import {
-  LanguageCheckService,
-  LanguageWarnResult,
-} from "@moderation/service/language-check.service";
+import { LanguageCheckService, LanguageWarnResult } from "@moderation/service/language-check.service";
 import { Update as TelegramUpdate } from "telegraf/types";
 import { CharacterService } from "@character/service/character.service";
 import { MessageService } from "@core/service/message.service";
@@ -63,10 +48,7 @@ export class ModerationController {
         ],
         "Moderation"
       ),
-    ]).then(
-      () => this.logger.debug("Set moderation commands"),
-      (error) => this.logger.error("Failed to set bot commands:", error)
-    );
+    ]);
   }
 
   @Command("warn")
@@ -92,15 +74,15 @@ export class ModerationController {
     );
 
     if (result === WarnResult.WARNED) {
-      this.reply(context, message, "User has been warned.");
+      await this.reply(context, message, "User has been warned.");
     } else if (result === WarnResult.BANNED) {
-      this.reply(
+      await this.reply(
         context,
         message,
         "User has been banned due to reaching the warning limit."
       );
     } else {
-      this.reply(context, message, "Failed to issue a warning.");
+      await this.reply(context, message, "Failed to issue a warning.");
     }
   }
 
@@ -110,7 +92,7 @@ export class ModerationController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    context.reply("Processing clear...");
+    this.logger.log("Handling /clear command");
   }
 
   @Command("ban")
@@ -232,27 +214,33 @@ export class ModerationController {
           context.from.id
         );
 
-        if (warnResult !== LanguageWarnResult.NONE) {
-          void context.react("👀");
-        }
+        void context.react("👀");
+        this.logger.log(`Language warning result: ${warnResult}`);
 
         if (warnResult === LanguageWarnResult.FIRST_WARNED) {
-          this.reply(
+          await this.reply(
             context,
             message,
             `Please use English only. This is your first warning. Further violations may lead to a ban.`
           );
         } else if (warnResult === LanguageWarnResult.WARNED) {
-          this.reply(
+          await this.reply(
             context,
             message,
             `You have been warned for using a non-English language. Please use English only.`
           );
         } else if (warnResult === LanguageWarnResult.BANNED) {
-          this.reply(
+          await this.reply(
             context,
             message,
             `You have been banned for repeated use of non-English language.`
+          );
+        } else if (warnResult === LanguageWarnResult.PERMA_BANNED) {
+          //@todo: better message
+          await this.reply(
+            context,
+            message,
+            `You have been permanently banned for whatever you did before and repeated use of non-English language.`
           );
         }
       }
@@ -281,27 +269,33 @@ export class ModerationController {
           context.from.id
         );
 
-        if (warnResult !== LanguageWarnResult.NONE) {
-          context.react("👀");
-        }
+        void context.react("👀");
+        this.logger.log(`Language warning result: ${warnResult}`);
 
         if (warnResult === LanguageWarnResult.FIRST_WARNED) {
-          this.reply(
+          await this.reply(
             context,
             message,
             `Please use English only. This is your first warning. Further violations may lead to a ban.`
           );
         } else if (warnResult === LanguageWarnResult.WARNED) {
-          this.reply(
+          await this.reply(
             context,
             message,
             `You have been warned for using a non-English language. Please use English only.`
           );
         } else if (warnResult === LanguageWarnResult.BANNED) {
-          this.reply(
+          await this.reply(
             context,
             message,
             `You have been banned for repeated use of non-English language.`
+          );
+        } else if (warnResult === LanguageWarnResult.PERMA_BANNED) {
+          //@todo: better message
+          await this.reply(
+            context,
+            message,
+            `You have been permanently banned for whatever you did before and repeated use of non-English language.`
           );
         }
       }
@@ -355,9 +349,9 @@ export class ModerationController {
     );
 
     if (warn !== null) {
-      this.reply(context, message, `You have ${warn.count} warning(s).`);
+      await this.reply(context, message, `You have ${warn.count} warning(s).`);
     } else {
-      this.reply(context, message, "You have no warnings.");
+      await this.reply(context, message, "You have no warnings.");
     }
   }
 
@@ -387,11 +381,9 @@ export class ModerationController {
   }
 
   private async reply(
-    @Ctx()
     context:
       | Context<TelegramUpdate.MessageUpdate>
       | Context<TelegramUpdate.EditedMessageUpdate>,
-    @Message()
     message:
       | TelegramUpdate.MessageUpdate["message"]
       | TelegramUpdate.EditedMessageUpdate["edited_message"],
@@ -404,7 +396,7 @@ export class ModerationController {
       answer = await this.characterService.rephrase(context.chat.id, answer);
     }
 
-    return context.reply(this.formatterService.escapeMarkdownV2(answer), {
+    return context.sendMessage(this.formatterService.escapeMarkdownV2(answer), {
       parse_mode: "Markdown",
       reply_parameters: {
         chat_id: context.chat.id,

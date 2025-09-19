@@ -126,6 +126,14 @@ export class ModerationService {
 
     const banEndTime = this.calculateBanEndTime(banEntity);
 
+    this.logger.log(
+      `With severity ${
+        banEntity.severity
+      }, banning user ${userId} in chat ${chatId} until ${
+        banEndTime > 0 ? new Date(banEndTime).toISOString() : "end of time"
+      }`
+    );
+
     try {
       if (banEndTime > 0) {
         if (revoke) {
@@ -139,9 +147,7 @@ export class ModerationService {
               can_send_polls: false,
               can_send_other_messages: false,
               can_add_web_page_previews: false,
-              can_change_info: false,
               can_invite_users: false,
-              can_pin_messages: false,
             },
             until_date: banEndTime,
           });
@@ -174,9 +180,31 @@ export class ModerationService {
   }
 
   public async unbanUser(chatId: number, userId: number): Promise<boolean> {
-    return this.bot.telegram.unbanChatMember(chatId, userId, {
-      only_if_banned: true,
-    });
+    return Promise.all([
+      this.bot.telegram.restrictChatMember(chatId, userId, {
+        permissions: {
+          can_send_messages: true,
+          can_send_polls: true,
+          can_send_other_messages: true,
+          can_add_web_page_previews: true,
+          can_invite_users: true,
+        },
+      }),
+      this.bot.telegram.unbanChatMember(chatId, userId, {
+        only_if_banned: true,
+      }),
+    ]).then(
+      () => {
+        return true;
+      },
+      (error) => {
+        this.logger.error(
+          `Failed to unban user ${userId} in chat ${chatId}`,
+          error
+        );
+        return false;
+      }
+    );
   }
 
   public async getWarns(

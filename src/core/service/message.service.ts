@@ -15,7 +15,7 @@ import { ConfigService } from "@core/service/config.service";
  */
 @Injectable()
 export class MessageService {
-  private readonly logger = new Logger(MessageService.name);
+  private readonly logger = new Logger("Core/MessageService");
 
   constructor(
     @InjectModel(MessageEntity.COLLECTION_NAME)
@@ -31,18 +31,38 @@ export class MessageService {
 
     for (const entity of mentionEntities) {
       if (entity.type === "mention") {
+        const username = this.extractUsernameFromHandle(entity.fragment);
+
+        if (!username) {
+          this.logger.log(
+            `Invalid username format in mention entity: ${entity.fragment}`
+          );
+          continue;
+        }
+
         const user = await this.userService.getUserByUsername(
           context.chat.id,
-          entity.fragment
+          this.extractUsernameFromHandle(entity.fragment)
         );
+
         if (user) {
+          this.logger.log(
+            `Using mention entity for target user: ${entity.fragment} -> ${user.userId}`
+          );
           return user.userId;
         } else {
-          return null;
+          this.logger.log(
+            `Mention entity for target user not found in database: ${entity.fragment}`
+          );
+
+          continue;
         }
       }
 
       if (entity.type === "text_mention" && entity.user) {
+        this.logger.log(
+          `Using text_mention entity for target user: ${entity.user.id}`
+        );
         return entity.user.id;
       }
     }
@@ -51,7 +71,24 @@ export class MessageService {
       "message" in context.update &&
       "reply_to_message" in context.update.message
     ) {
+      this.logger.log(
+        `Using reply_to_message for target user: ${context.update.message.reply_to_message.from.id}`
+      );
       return context.update.message.reply_to_message.from.id;
+    }
+
+    return null;
+  }
+
+  public extractUsernameFromHandle(handle: string): string | null {
+    let supposedHandle = handle.trim();
+
+    if (supposedHandle.startsWith("@") && supposedHandle.length > 1) {
+      supposedHandle = supposedHandle.slice(1);
+    }
+
+    if (/^[a-zA-Z0-9_]{5,32}$/.test(supposedHandle)) {
+      return supposedHandle;
     }
 
     return null;

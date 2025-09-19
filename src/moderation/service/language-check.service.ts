@@ -128,7 +128,10 @@ export class LanguageCheckService {
       );
 
       if (result === WarnResult.BANNED || result === WarnResult.PERMA_BANNED) {
-        await languageWarning.deleteOne();
+        await this.languageWarnEntityModel.updateOne(
+          { chatId: chatId, userId: userId },
+          { count: 0 }
+        );
 
         if (result === WarnResult.PERMA_BANNED) {
           return LanguageWarnResult.PERMA_BANNED;

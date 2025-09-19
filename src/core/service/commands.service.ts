@@ -12,7 +12,7 @@ import { BotCommand } from "@telegraf/types/manage";
 
 @Injectable()
 export class CommandsService {
-  private readonly logger = new Logger("Core/ToolsController");
+  private readonly logger = new Logger("Core/CommandsService");
 
   private wiped = false;
 
@@ -30,6 +30,8 @@ export class CommandsService {
     forModule: string
   ): Promise<boolean> {
     if (!this.wiped) {
+      this.wiped = true;
+
       await this.bot.telegram
         .setMyCommands([])
         .then(() => {
@@ -38,8 +40,6 @@ export class CommandsService {
         .catch((error) => {
           this.logger.error("Failed to clear commands:", error);
         });
-
-      this.wiped = true;
     }
 
     this.bot.telegram
