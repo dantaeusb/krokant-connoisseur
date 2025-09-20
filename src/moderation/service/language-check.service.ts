@@ -137,7 +137,11 @@ export class LanguageCheckService {
           return LanguageWarnResult.PERMA_BANNED;
         }
 
-        return LanguageWarnResult.PERMA_BANNED;
+        return LanguageWarnResult.BANNED;
+      } else if (result === WarnResult.WARNED) {
+        return LanguageWarnResult.WARNED;
+      } else {
+        return LanguageWarnResult.NONE;
       }
     }
 
