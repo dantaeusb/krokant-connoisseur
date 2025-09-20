@@ -18,9 +18,7 @@ export class ProfanityCheckService {
 
     const triggeredFilters = config.profanityFilters.filter(
       (filter: ProfanityFilterEntity) => {
-        this.logger.log(filter);
         if (filter.type === "text") {
-          this.logger.log(words, filter.filter);
           // @todo: [LOW] Better ways to do type check
           return words.some(
             (word) => word.toLowerCase().indexOf(filter.filter as string) !== -1

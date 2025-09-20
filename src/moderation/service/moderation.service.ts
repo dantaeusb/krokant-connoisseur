@@ -128,7 +128,7 @@ export class ModerationService {
       `With severity ${
         banEntity.severity
       }, banning user ${userId} in chat ${chatId} until ${
-        banEndTime > 0 ? new Date(banEndTime).toISOString() : "end of time"
+        banEndTime > 0 ? new Date(banEndTime * 1000).toISOString() : "end of time"
       }`
     );
 
@@ -235,7 +235,7 @@ export class ModerationService {
 
     const endDate = new Date();
     endDate.setHours(endDate.getHours() + hours);
-    return endDate.getTime();
+    return endDate.getTime() / 1000;
   }
 
   public getBanDuration(severity: number): string {

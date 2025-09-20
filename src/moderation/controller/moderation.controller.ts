@@ -176,10 +176,7 @@ export class ModerationController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    await this.moderationService.permaBanUser(
-      message.message_id,
-      context.from.id
-    );
+    await this.moderationService.permaBanUser(context.chat.id, context.from.id);
   }
 
   @On(["message", "edited_message"])
