@@ -4,6 +4,10 @@ import {
   PingGroupSchema,
 } from "@core/entity/ping-group.entity";
 import { HydratedDocument, Types } from "mongoose";
+import {
+  ProfanityFilterEntity,
+  ProfanityFilterSchema,
+} from "@moderation/entity/profanity-filter.entity";
 
 export type ConfigDocument = HydratedDocument<
   ConfigEntity,
@@ -58,6 +62,9 @@ export class ConfigEntity {
 
   @Prop([PingGroupSchema])
   pingGroups: Array<PingGroupEntity>;
+
+  @Prop([ProfanityFilterSchema])
+  profanityFilters: Array<ProfanityFilterEntity>;
 
   @Prop({ default: false })
   debugMode: boolean;

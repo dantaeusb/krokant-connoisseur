@@ -23,7 +23,7 @@ export class LanguageCheckService {
   private static COMMON_SYMBOLS =
     "!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?`~\n"; // Common symbols
   private static MATH_SYMBOLS = "\u2200-\u22FF"; // Mathematical operators
-  private static FORMATTING_SYMBOLS = "\u2000-\u206F"; // Formatting symbols
+  private static FORMATTING_SYMBOLS = "\u2000-\u206F\u00A0"; // Formatting symbols, nbsp
 
   private static SUPPORTED_LANGUAGES = ["en", "ru", "pt"];
   private static BASE_PATTERN_CHARS = `${LanguageCheckService.ASCII_CHARACTERS}${LanguageCheckService.DIGITS}${LanguageCheckService.COMMON_SYMBOLS}${LanguageCheckService.MATH_SYMBOLS}${LanguageCheckService.FORMATTING_SYMBOLS}`;

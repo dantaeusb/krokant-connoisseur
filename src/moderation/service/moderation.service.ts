@@ -6,7 +6,6 @@ import { BanEntity } from "../entity/ban.entity";
 import { InjectBot } from "nestjs-telegraf";
 import { ClankerBotName } from "@/app.constants";
 import { Context, Telegraf } from "telegraf";
-import { UserService } from "@core/service/user.service";
 import { Cron } from "@nestjs/schedule";
 
 @Injectable()
@@ -23,7 +22,6 @@ export class ModerationService {
 
   constructor(
     @InjectBot(ClankerBotName) private readonly bot: Telegraf<Context>,
-    private readonly userService: UserService,
     @InjectModel(WarnEntity.COLLECTION_NAME)
     private readonly warnEntityModel: Model<WarnEntity>,
     @InjectModel(BanEntity.COLLECTION_NAME)

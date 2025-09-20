@@ -8,6 +8,7 @@ import {
   On,
   Update,
 } from "nestjs-telegraf";
+import { Update as TelegramUpdate } from "telegraf/types";
 import {
   BanResult,
   ModerationService,
@@ -16,12 +17,12 @@ import {
 import { Context, Telegraf } from "telegraf";
 import { ClankerBotName } from "@/app.constants";
 import { AdminGuard } from "@core/guard/admin.guard";
-import { TranslationService } from "@moderation/service/translation.service";
+import { TranslationService } from "../service/translation.service";
 import {
   LanguageCheckService,
   LanguageWarnResult,
 } from "@moderation/service/language-check.service";
-import { Update as TelegramUpdate } from "telegraf/types";
+import { ProfanityCheckService } from "../service/profanity-check.service";
 import { CharacterService } from "@character/service/character.service";
 import { MessageService } from "@core/service/message.service";
 import { ConfigService } from "@core/service/config.service";
@@ -40,6 +41,7 @@ export class ModerationController {
     private readonly moderationService: ModerationService,
     private readonly translationService: TranslationService,
     private readonly languageCheckService: LanguageCheckService,
+    private readonly profanityCheckService: ProfanityCheckService,
     private readonly messageService: MessageService,
     private readonly characterService: CharacterService,
     private readonly formatterService: FormatterService
@@ -287,7 +289,37 @@ export class ModerationController {
       return next();
     }
 
-    //this.logger.log(message);
+    const hasProfanity = await this.profanityCheckService.containsProfanity(
+      context.chat.id,
+      context.text
+    );
+
+    if (hasProfanity) {
+      // @todo: [HIGH] Warn moderator if not deleted?
+      void context.deleteMessage(context.message.message_id);
+
+      const result = await this.moderationService.warnUser(
+        context.chat.id,
+        context.from.id,
+        "For not learning which words not to use"
+      );
+
+      if (result === WarnResult.WARNED) {
+        await this.reply(
+          context,
+          message,
+          "User has been warned for using profanity."
+        );
+      } else if (result === WarnResult.BANNED) {
+        await this.reply(
+          context,
+          message,
+          "User has been banned due using profanity after reaching the warning limit."
+        );
+      } else {
+        await this.reply(context, message, "Failed to issue a warning.");
+      }
+    }
 
     return next();
   }
@@ -333,6 +365,27 @@ export class ModerationController {
       );
     } else {
       this.reply(context, message, "You have no bans.");
+    }
+  }
+
+  @On("message_reaction")
+  async handleMessageReaction(
+    @Ctx() context: Context<TelegramUpdate.MessageReactionUpdate>
+  ): Promise<void> {
+    this.logger.log("Handling message reaction");
+
+    if (context && context.messageReaction) {
+      this.logger.log(
+        `User ${
+          context.from.id
+        } reacted with ${context.messageReaction.new_reaction.map((r) => {
+          if (r.type === "emoji") {
+            return r.emoji;
+          } else if (r.type === "custom_emoji") {
+            return r.custom_emoji_id;
+          }
+        })} on message ${context.messageReaction.message_id}`
+      );
     }
   }
 

@@ -16,6 +16,20 @@ import { ClankerBotName } from "./app.constants";
       useFactory: () => ({
         token: process.env.TELEGRAM_BOT_TOKEN,
         include: [ModerationModule, CharacterModule],
+        launchOptions: {
+          allowedUpdates: [
+            "message",
+            "edited_message",
+            "message_reaction",
+            "message_reaction_count",
+            "inline_query",
+            "chosen_inline_result",
+            "poll",
+            "poll_answer",
+            "chat_join_request",
+            "callback_query",
+          ],
+        },
       }),
     }),
     CoreModule,
