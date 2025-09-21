@@ -28,6 +28,12 @@ export class ModerationService {
     private readonly banEntityModel: Model<BanEntity>
   ) {}
 
+  /**
+   *
+   * Warn section
+   *
+   */
+
   /*bot.telegram.sendSticker(
     chatId,
     "CAACAgIAAxkBAAMtaMCj9huqEnlcLNC0Q-AlpGt9XwIAAj5tAALGK4BLkonz2kRJC4c2BA"
@@ -74,6 +80,36 @@ export class ModerationService {
 
     return WarnResult.WARNED;
   }
+
+  public async getWarns(
+    chatId: number,
+    userId: number
+  ): Promise<WarnEntity | null> {
+    return this.warnEntityModel
+      .findOne({ chatId: chatId, userId: userId })
+      .exec();
+  }
+
+  @Cron("0 * * * *")
+  public async cooldownWarnings() {
+    this.logger.log("Running warn cooldown job");
+
+    const cooldownDate = new Date();
+    cooldownDate.setDate(cooldownDate.getDate() - 1);
+
+    // @todo: Only not banned users
+
+    const result = await this.warnEntityModel.updateMany(
+      { updatedAt: { $lt: cooldownDate }, count: { $gt: 0 } },
+      { $inc: { count: -1 } }
+    );
+
+    this.logger.log(`Cooled down ${result.modifiedCount} warnings`);
+  }
+
+  /**
+   * Ban section
+   */
 
   public async muteUser(chatId: number, userId: number): Promise<boolean> {
     try {
@@ -205,15 +241,6 @@ export class ModerationService {
     );
   }
 
-  public async getWarns(
-    chatId: number,
-    userId: number
-  ): Promise<WarnEntity | null> {
-    return this.warnEntityModel
-      .findOne({ chatId: chatId, userId: userId })
-      .exec();
-  }
-
   public async getBans(
     chatId: number,
     userId: number
@@ -260,23 +287,6 @@ export class ModerationService {
     }
 
     return `${days} day(s) and ${remainingHours} hour(s)`;
-  }
-
-  @Cron("0 * * * *")
-  public async cooldownWarnings() {
-    this.logger.log("Running warn cooldown job");
-
-    const cooldownDate = new Date();
-    cooldownDate.setDate(cooldownDate.getDate() - 1);
-
-    // @todo: Only not banned users
-
-    const result = await this.warnEntityModel.updateMany(
-      { updatedAt: { $lt: cooldownDate }, count: { $gt: 0 } },
-      { $inc: { count: -1 } }
-    );
-
-    this.logger.log(`Cooled down ${result.modifiedCount} warnings`);
   }
 
   @Cron("0 0 * * *")

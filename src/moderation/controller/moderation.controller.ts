@@ -87,7 +87,7 @@ export class ModerationController {
 
     const result = await this.moderationService.warnUser(
       message.chat.id,
-      message.from.id
+      targetUserId
     );
 
     if (result === WarnResult.WARNED) {
@@ -131,7 +131,7 @@ export class ModerationController {
 
     const result = await this.moderationService.banUser(
       message.chat.id,
-      message.from.id
+      targetUserId
     );
 
     if (result === BanResult.BANNED) {
@@ -161,7 +161,7 @@ export class ModerationController {
     }
 
     await this.moderationService
-      .unbanUser(message.chat.id, message.from.id)
+      .unbanUser(message.chat.id, targetUserId)
       .then(() => {
         this.reply(context, message, "User has been unbanned.");
       })
@@ -176,7 +176,18 @@ export class ModerationController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    await this.moderationService.permaBanUser(context.chat.id, context.from.id);
+    this.logger.log("Handling /unban command");
+
+    const targetUserId = await this.messageService.getTargetUserFromMessage(
+      context
+    );
+
+    if (!targetUserId) {
+      this.logger.error("Could not find target user to unban.");
+      return;
+    }
+
+    await this.moderationService.permaBanUser(context.chat.id, targetUserId);
   }
 
   @On(["message", "edited_message"])
