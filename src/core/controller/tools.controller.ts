@@ -63,7 +63,7 @@ export class ToolsController {
   async groupCreate(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>
   ): Promise<void> {
-    this.logger.log("Handling /group_create command");
+    this.logger.debug("Handling /group_create command");
 
     if (!context.chat.id || !context.from) {
       context.reply("This command can only be used in groups.");
@@ -108,7 +108,7 @@ export class ToolsController {
   async groupAdd(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>
   ): Promise<void> {
-    this.logger.log("Handling /group_add command");
+    this.logger.debug("Handling /group_add command");
 
     if (!context.chat.id || !context.from) {
       context.reply("This command can only be used in groups.");
@@ -191,7 +191,7 @@ export class ToolsController {
     message: TelegramUpdate.MessageUpdate["message"],
     @Next() next: () => Promise<void>
   ): Promise<void> {
-    this.logger.log("Handling message for group ping check");
+    this.logger.debug("Handling message for group ping check");
 
     if (!context.text) {
       return next();

@@ -81,6 +81,19 @@ export class ModerationService {
     return WarnResult.WARNED;
   }
 
+  public async resetWarns(chatId: number, userId: number): Promise<boolean> {
+    const result = await this.warnEntityModel
+      .findOneAndUpdate(
+        { chatId: chatId, userId: userId },
+        {
+          count: 0,
+        }
+      )
+      .exec();
+
+    return result !== null;
+  }
+
   public async getWarns(
     chatId: number,
     userId: number
@@ -164,7 +177,9 @@ export class ModerationService {
       `With severity ${
         banEntity.severity
       }, banning user ${userId} in chat ${chatId} until ${
-        banEndTime > 0 ? new Date(banEndTime * 1000).toISOString() : "end of time"
+        banEndTime > 0
+          ? new Date(banEndTime * 1000).toISOString()
+          : "end of time"
       }`
     );
 
@@ -199,6 +214,8 @@ export class ModerationService {
       );
       return BanResult.NONE;
     }
+
+    await this.resetWarns(chatId, userId);
 
     if (banEndTime > 0) {
       return BanResult.BANNED;
@@ -250,6 +267,15 @@ export class ModerationService {
       .exec();
   }
 
+  /**
+   * @todo: This needs rework, we need to get time offset from the same
+   * method, but then convert it to unix seconds or readable date or whatever
+   */
+
+  /**
+   * @param banEntity
+   * @private
+   */
   private calculateBanEndTime(banEntity: BanEntity): number {
     if (banEntity.severity >= 7) {
       return 0;

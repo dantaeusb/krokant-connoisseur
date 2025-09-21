@@ -27,7 +27,7 @@ export class LoggingController {
     message: TelegramUpdate.MessageUpdate["message"],
     @Next() next: () => Promise<void>
   ): Promise<void> {
-    this.logger.log("Handling message for logging");
+    this.logger.debug("Handling message for logging");
 
     if (!context.text) {
       return next();

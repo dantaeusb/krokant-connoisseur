@@ -84,7 +84,7 @@ export class CharacterController {
     message: TelegramUpdate.MessageUpdate["message"],
     @Next() next: () => Promise<void>
   ): Promise<void> {
-    this.logger.log("Handling message for possible character response");
+    this.logger.debug("Handling message for possible character response");
 
     if (!context.text) {
       return next();
@@ -166,7 +166,7 @@ export class CharacterController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    this.logger.log("Handling /ignoreme command");
+    this.logger.debug("Handling /ignoreme command");
 
     this.userService
       .setIgnore(context.chat.id, context.from.id, true)
@@ -199,7 +199,7 @@ export class CharacterController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    this.logger.log("Handling /unignoreme command");
+    this.logger.debug("Handling /unignoreme command");
 
     this.userService
       .setIgnore(context.chat.id, context.from.id, false)
@@ -229,7 +229,7 @@ export class CharacterController {
   async ignoreUser(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>
   ): Promise<void> {
-    this.logger.log("Handling /ignore_user command");
+    this.logger.debug("Handling /ignore_user command");
 
     const targetUserId = await this.messageService.getTargetUserFromMessage(
       context
@@ -257,7 +257,7 @@ export class CharacterController {
   async unignoreUser(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>
   ): Promise<void> {
-    this.logger.log("Handling /unignore_user command");
+    this.logger.debug("Handling /unignore_user command");
 
     const targetUserId = await this.messageService.getTargetUserFromMessage(
       context
@@ -285,7 +285,7 @@ export class CharacterController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    this.logger.log("Handling /forgetme command");
+    this.logger.debug("Handling /forgetme command");
 
     context.sendMessage("Can't do that yet ask @dantaeusb to do that.", {
       reply_parameters: {

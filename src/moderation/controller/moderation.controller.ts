@@ -17,17 +17,18 @@ import {
 import { Context, Telegraf } from "telegraf";
 import { ClankerBotName } from "@/app.constants";
 import { AdminGuard } from "@core/guard/admin.guard";
-import { TranslationService } from "../service/translation.service";
-import {
-  LanguageCheckService,
-  LanguageWarnResult,
-} from "@moderation/service/language-check.service";
 import { ProfanityCheckService } from "../service/profanity-check.service";
 import { CharacterService } from "@character/service/character.service";
 import { MessageService } from "@core/service/message.service";
 import { ConfigService } from "@core/service/config.service";
 import { FormatterService } from "@core/service/formatter.service";
 import { CommandsService } from "@core/service/commands.service";
+import { UserService } from "@core/service/user.service";
+import { TranslationService } from "../service/translation.service";
+import {
+  LanguageCheckService,
+  LanguageWarnResult,
+} from "@moderation/service/language-check.service";
 
 @Update()
 export class ModerationController {
@@ -42,6 +43,7 @@ export class ModerationController {
     private readonly translationService: TranslationService,
     private readonly languageCheckService: LanguageCheckService,
     private readonly profanityCheckService: ProfanityCheckService,
+    private readonly userService: UserService,
     private readonly messageService: MessageService,
     private readonly characterService: CharacterService,
     private readonly formatterService: FormatterService
@@ -74,7 +76,7 @@ export class ModerationController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    this.logger.log("Handling /warn command");
+    this.logger.debug("Handling /warn command");
 
     const targetUserId = await this.messageService.getTargetUserFromMessage(
       context
@@ -82,6 +84,7 @@ export class ModerationController {
 
     if (!targetUserId) {
       this.logger.error("Could not find target user to warn.");
+      void context.react("🤷‍♂");
       return;
     }
 
@@ -90,16 +93,30 @@ export class ModerationController {
       targetUserId
     );
 
+    const user = await this.userService.getUser(
+      context.chat.id,
+      context.from.id,
+      context.from
+    );
+
+    const name = user?.name || "User";
+
     if (result === WarnResult.WARNED) {
-      await this.reply(context, message, "User has been warned.");
+      void context.react("👌");
+      await this.reply(context, message, `${name} has been warned.`);
     } else if (result === WarnResult.BANNED) {
+      void context.react("👌");
       await this.reply(
         context,
         message,
-        "User has been banned due to reaching the warning limit."
+        `${name} has been banned due to reaching the warning limit.`
       );
     } else {
-      await this.reply(context, message, "Failed to issue a warning.");
+      await this.reply(
+        context,
+        message,
+        `Failed to issue a warning for ${name}.`
+      );
     }
   }
 
@@ -109,7 +126,30 @@ export class ModerationController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    this.logger.log("Handling /clear command");
+    this.logger.debug("Handling /clear command");
+
+    const targetUserId = await this.messageService.getTargetUserFromMessage(
+      context
+    );
+
+    if (!targetUserId) {
+      this.logger.error("Could not find target user to warn.");
+      void context.react("🤷‍♂");
+      return;
+    }
+
+    const result = await this.moderationService.resetWarns(
+      message.chat.id,
+      targetUserId
+    );
+
+    if (result) {
+      void context.react("👌");
+      await this.reply(context, message, "User warnings have been cleared.");
+    } else {
+      void context.react("🤷‍♂");
+      await this.reply(context, message, "Failed to clear user warnings.");
+    }
   }
 
   @Command("ban")
@@ -118,7 +158,7 @@ export class ModerationController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    this.logger.log("Handling /ban command");
+    this.logger.debug("Handling /ban command");
 
     const targetUserId = await this.messageService.getTargetUserFromMessage(
       context
@@ -126,6 +166,7 @@ export class ModerationController {
 
     if (!targetUserId) {
       this.logger.error("Could not find target user to ban.");
+      void context.react("🤷‍♂");
       return;
     }
 
@@ -134,12 +175,23 @@ export class ModerationController {
       targetUserId
     );
 
+    const user = await this.userService.getUser(
+      context.chat.id,
+      context.from.id,
+      context.from
+    );
+
+    const name = user?.name || "User";
+
     if (result === BanResult.BANNED) {
-      this.reply(context, message, "User has been banned.");
+      void context.react("👌");
+      this.reply(context, message, `${name} has been banned.`);
     } else if (result === BanResult.PERMA_BANNED) {
-      this.reply(context, message, "User has been banned forever.");
+      void context.react("👌");
+      this.reply(context, message, `${name} has been banned forever.`);
     } else {
-      this.reply(context, message, "Failed to ban user.");
+      void context.react("🤷‍♂");
+      this.reply(context, message, `Failed to ban ${name}.`);
     }
   }
 
@@ -149,7 +201,7 @@ export class ModerationController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    this.logger.log("Handling /unban command");
+    this.logger.debug("Handling /unban command");
 
     const targetUserId = await this.messageService.getTargetUserFromMessage(
       context
@@ -157,6 +209,7 @@ export class ModerationController {
 
     if (!targetUserId) {
       this.logger.error("Could not find target user to unban.");
+      void context.react("🤷‍♂");
       return;
     }
 
@@ -176,7 +229,7 @@ export class ModerationController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    this.logger.log("Handling /unban command");
+    this.logger.debug("Handling /unban command");
 
     const targetUserId = await this.messageService.getTargetUserFromMessage(
       context
@@ -184,6 +237,7 @@ export class ModerationController {
 
     if (!targetUserId) {
       this.logger.error("Could not find target user to unban.");
+      void context.react("🤷‍♂");
       return;
     }
 
@@ -202,7 +256,7 @@ export class ModerationController {
       | TelegramUpdate.EditedMessageUpdate["edited_message"],
     @Next() next: () => Promise<void>
   ): Promise<void> {
-    this.logger.log("Handling message for language check");
+    this.logger.debug("Handling message for language check");
 
     if (!context.text || context.from.is_bot) {
       return next();
@@ -245,32 +299,40 @@ export class ModerationController {
         );
 
         void context.react("👀");
-        this.logger.log(`Language warning result: ${warnResult}`);
+        this.logger.debug(`Language warning result: ${warnResult}`);
+
+        const user = await this.userService.getUser(
+          context.chat.id,
+          context.from.id,
+          context.from
+        );
+
+        const name = user?.name || "User";
 
         if (warnResult === LanguageWarnResult.FIRST_WARNED) {
           await this.reply(
             context,
             message,
-            `Please use English only. This is your first warning. Further violations may lead to a ban.`
+            `Please use English only, ${name}. This is your first warning. Further violations may lead to a ban.`
           );
         } else if (warnResult === LanguageWarnResult.WARNED) {
           await this.reply(
             context,
             message,
-            `You have been warned for using a non-English language. Please use English only.`
+            `${name} you have been warned for using a non-English language. Please use English only.`
           );
         } else if (warnResult === LanguageWarnResult.BANNED) {
           await this.reply(
             context,
             message,
-            `You have been banned for repeated use of non-English language.`
+            `${name} you have been banned for repeated use of non-English language.`
           );
         } else if (warnResult === LanguageWarnResult.PERMA_BANNED) {
           //@todo: better message
           await this.reply(
             context,
             message,
-            `You have been permanently banned for whatever you did before and repeated use of non-English language.`
+            `${name} you have been permanently banned for whatever you did before and repeated use of non-English language.`
           );
         }
       }
@@ -291,7 +353,7 @@ export class ModerationController {
       | TelegramUpdate.EditedMessageUpdate["edited_message"],
     @Next() next: () => Promise<void>
   ): Promise<void> {
-    this.logger.log("Handling message for profanity and links check");
+    this.logger.debug("Handling message for profanity and links check");
 
     if (!context.text) {
       return next();
@@ -312,17 +374,23 @@ export class ModerationController {
         "For not learning which words not to use"
       );
 
+      const user = await this.userService.getUser(
+        context.chat.id,
+        context.from.id,
+        context.from
+      );
+
       if (result === WarnResult.WARNED) {
         await this.reply(
           context,
           message,
-          "User has been warned for using profanity."
+          `${user.name} has been warned for using profanity.`
         );
       } else if (result === WarnResult.BANNED) {
         await this.reply(
           context,
           message,
-          "User has been banned due using profanity after reaching the warning limit."
+          `${user.name} has been banned due using profanity after reaching the warning limit.`
         );
       } else {
         await this.reply(context, message, "Failed to issue a warning.");
@@ -337,7 +405,7 @@ export class ModerationController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    this.logger.log("Handling /warns command");
+    this.logger.debug("Handling /warns command");
 
     const warn = await this.moderationService.getWarns(
       message.chat.id,
@@ -356,7 +424,7 @@ export class ModerationController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    this.logger.log("Handling /warns command");
+    this.logger.debug("Handling /warns command");
 
     const ban = await this.moderationService.getBans(
       message.chat.id,
@@ -380,7 +448,7 @@ export class ModerationController {
   async handleMessageReaction(
     @Ctx() context: Context<TelegramUpdate.MessageReactionUpdate>
   ): Promise<void> {
-    this.logger.log("Handling message reaction");
+    this.logger.debug("Handling message reaction");
 
     if (context && context.messageReaction) {
       this.logger.log(
