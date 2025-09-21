@@ -9,6 +9,7 @@ export class TriggerService {
     { phrase: "clanker", chance: 0.8 },
     { phrase: "clankkka", chance: 0.8 },
     { phrase: "clanker", chance: 0.8 },
+    { phrase: "KrokantConnoisseurChatBot", chance: 1 },
   ];
 
   public triggered(text: string): boolean {

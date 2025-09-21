@@ -380,17 +380,19 @@ export class ModerationController {
         context.from
       );
 
+      const name = user?.name || "User";
+
       if (result === WarnResult.WARNED) {
         await this.reply(
           context,
           message,
-          `${user.name} has been warned for using profanity.`
+          `${name} has been warned for using profanity.`
         );
       } else if (result === WarnResult.BANNED) {
         await this.reply(
           context,
           message,
-          `${user.name} has been banned due using profanity after reaching the warning limit.`
+          `${name} has been banned due using profanity after reaching the warning limit.`
         );
       } else {
         await this.reply(context, message, "Failed to issue a warning.");

@@ -15,7 +15,7 @@ type MessageEntityWithChain = MessageEntity & {
 export class CharacterService {
   private static PRO_TRIGGER_CHANCE = 0.3;
 
-  private logger: Logger = new Logger(ConfigService.name);
+  private logger: Logger = new Logger("Character/CharacterService");
 
   constructor(
     private readonly configService: ConfigService,
@@ -32,7 +32,7 @@ export class CharacterService {
   ): Promise<string> {
     const promptList: Array<Content> = [
       {
-        role: "model",
+        role: "user",
         parts: [
           {
             text:
@@ -47,6 +47,21 @@ export class CharacterService {
         ],
       },
     ];
+
+    const config = await this.configService.getConfig(chatId);
+
+    this.logger.log(config.characterExtraPrompt);
+
+    if (config.characterExtraPrompt) {
+      promptList.unshift({
+        role: "user",
+        parts: [
+          {
+            text: config.characterExtraPrompt,
+          },
+        ],
+      });
+    }
 
     const conversationContext = await this.collectConversationContext(
       chatId,
@@ -93,7 +108,7 @@ export class CharacterService {
 
     const chatConfig = await this.configService.getConfig(chatId);
 
-    const result =
+    let result =
       Math.random() < CharacterService.PRO_TRIGGER_CHANCE
         ? await this.geminiService.good(promptList, chatConfig.characterPrompt)
         : await this.geminiService.regular(
@@ -104,6 +119,8 @@ export class CharacterService {
     if (!result) {
       return this.fallback();
     }
+
+    result = result.replace(/^>+/g, "");
 
     return result;
   }

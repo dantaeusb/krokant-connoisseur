@@ -1,3 +1,6 @@
+/**
+ * Useless because bots can't use custom reactions
+ */
 export const REACTION_CONSTANTS = {
   CROSS: 5210952531676504517n,
   ZERO: 5210920027364018632n,

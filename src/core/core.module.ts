@@ -1,12 +1,12 @@
 import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
-import { UserSchema } from "./entity/user.entity";
+import { UserEntity, UserSchema } from "./entity/user.entity";
 import { MessageService } from "./service/message.service";
 import { UserService } from "./service/user.service";
 import { ConfigService } from "./service/config.service";
-import { ConfigSchema } from "./entity/config.entity";
+import { ConfigEntity, ConfigSchema } from "./entity/config.entity";
 import { ConfigController } from "./controller/config.controller";
-import { MessageSchema } from "./entity/message.entity";
+import { MessageEntity, MessageSchema } from "./entity/message.entity";
 import { LoggingController } from "./controller/logging.controller";
 import { FormatterService } from "./service/formatter.service";
 import { ToolsController } from "./controller/tools.controller";
@@ -17,9 +17,9 @@ import { CommandsService } from "./service/commands.service";
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: "config", schema: ConfigSchema },
-      { name: "user", schema: UserSchema },
-      { name: "message", schema: MessageSchema },
+      { name: ConfigEntity.COLLECTION_NAME, schema: ConfigSchema },
+      { name: UserEntity.COLLECTION_NAME, schema: UserSchema },
+      { name: MessageEntity.COLLECTION_NAME, schema: MessageSchema },
     ]),
   ],
   providers: [

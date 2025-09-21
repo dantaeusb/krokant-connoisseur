@@ -67,8 +67,8 @@ export class GeminiService {
         candidateCount: 1,
         safetySettings: this.safetySettings,
         systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
-        temperature: 1,
-        topP: 0.8,
+        temperature: 1.5,
+        topP: 0.85,
       },
     });
 
@@ -88,8 +88,8 @@ export class GeminiService {
         candidateCount: 1,
         safetySettings: this.safetySettings,
         systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
-        temperature: 0.9,
-        topP: 0.85,
+        temperature: 1.3,
+        topP: 0.9,
       },
     });
 
@@ -109,8 +109,48 @@ export class GeminiService {
         candidateCount: 1,
         safetySettings: this.safetySettings,
         systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
-        temperature: 0.8,
+        temperature: 1.0,
         topP: 0.95,
+      },
+    });
+
+    this.logger.log(result.candidates);
+
+    return (
+      result.candidates[0].content.parts
+        .map((part) => part.text || "")
+        .join("\n") ?? null
+    );
+  }
+
+  /**
+   * Cool shit: https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/control-generated-output
+   *
+   * @param prompt
+   * @param systemPrompt
+   */
+  public async classify(
+    prompt: string,
+    systemPrompt?: string
+  ): Promise<string | null> {
+    const result = await this.googleGenAI.models.generateContent({
+      model: "gemini-1.5-turbo",
+      contents: [
+        {
+          role: "system",
+          parts: [{ text: systemPrompt ?? "You are a helpful assistant." }],
+        },
+        { role: "user", parts: [{ text: prompt }] },
+      ],
+      config: {
+        candidateCount: 1,
+        safetySettings: this.safetySettings,
+        temperature: 0.0,
+        topP: 1.0,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+        }
       },
     });
 
