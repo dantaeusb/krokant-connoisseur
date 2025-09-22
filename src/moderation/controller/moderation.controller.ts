@@ -52,18 +52,44 @@ export class ModerationController {
       this.commandsService.extendCommands(
         "all_chat_administrators",
         [
-          { command: "warn", description: "Warn a user" },
-          { command: "ban", description: "Ban a user" },
-          { command: "unban", description: "Unban a user" },
-          { command: "permaban", description: "Permanently ban a user" },
+          {
+            forModule: "Moderation",
+            command: "warn",
+            description: "Warn a user",
+          },
+          {
+            forModule: "Moderation",
+            command: "ban",
+            description: "Ban a user",
+          },
+          {
+            forModule: "Moderation",
+            command: "unban",
+            description: "Unban a user",
+          },
+          {
+            forModule: "Moderation",
+            command: "permaban",
+            description: "Permanently ban a user",
+          },
         ],
         "Moderation"
       ),
       this.commandsService.extendCommands(
         "all_group_chats",
         [
-          { command: "warns", description: "Check your warnings" },
-          { command: "bans", description: "Check your bans" },
+          {
+            forModule: "Moderation",
+            command: "warns",
+            description: "Check your warnings",
+            detailedDescription: "Allows users to show many warnings they have",
+          },
+          {
+            forModule: "Moderation",
+            command: "bans",
+            description: "Check your bans",
+            detailedDescription: "Allows users to show their last ban severity",
+          },
         ],
         "Moderation"
       ),
@@ -275,7 +301,7 @@ export class ModerationController {
         .translateText(context.text)
         .then((translatedText) => {
           if (translatedText) {
-            context.sendMessage(translatedText, {
+            this.messageService.sendMessage(context.chat.id, translatedText, {
               reply_parameters: {
                 message_id: message.message_id,
                 chat_id: context.chat.id,
@@ -483,7 +509,7 @@ export class ModerationController {
       answer = await this.characterService.rephrase(context.chat.id, answer);
     }
 
-    return context.sendMessage(this.formatterService.escapeMarkdownV2(answer), {
+    return this.messageService.sendMessage(context.chat.id, answer, {
       parse_mode: "Markdown",
       reply_parameters: {
         chat_id: context.chat.id,

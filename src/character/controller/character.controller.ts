@@ -44,13 +44,21 @@ export class CharacterController {
         "all_chat_administrators",
         [
           {
+            forModule: "Character",
             command: "ignore_user",
             description:
               "Do not collect messages and do not respond to that user",
+            detailedDescription:
+              "Allows admin to to opt out user from the bot responses, and hides that user's messages from the bot." +
+              "The bot will be aware that message is sent, but will not see its contents.",
           },
           {
+            forModule: "Character",
             command: "unignore_user",
             description: "Collect messages and respond to that user",
+            detailedDescription:
+              "Reverts the effect of /ignore_user command, allowing the bot to see and respond to the mentioned user again." +
+              "Previously sent messages will not be restored.",
           },
         ],
         "Character"
@@ -59,16 +67,28 @@ export class CharacterController {
         "all_group_chats",
         [
           {
+            forModule: "Character",
             command: "ignoreme",
             description: "Do not collect messages and respond to you",
+            detailedDescription:
+              "Allows user to opt out from the bot responses, and hides their messages from the bot." +
+              "The bot will be aware that message is sent, but will not see its contents.",
           },
           {
+            forModule: "Character",
             command: "unignoreme",
             description: "Collect messages and respond to you",
+            detailedDescription:
+              "Reverts the effect of /ignoreme command, allowing the bot to see and respond to that user again." +
+              "Previously sent messages will not be restored.",
           },
           {
+            forModule: "Character",
             command: "forgetme",
             description: "Delete all messages and information about you",
+            detailedDescription:
+              "Deletes all messages and information about you from the bot's memory." +
+              "The bot will forget you ever existed, apart from the moderation stats like bans. This action is irreversible.",
           },
         ],
         "Character"
@@ -138,25 +158,18 @@ export class CharacterController {
       user
     );
 
-    const result = await context.reply(
-      this.formatterService.escapeMarkdownV2(response),
-      {
+    void this.messageService
+      .sendMessage(context.chat.id, response, {
         parse_mode: "Markdown",
         reply_parameters: {
           chat_id: context.chat.id,
           message_id: message.message_id,
           allow_sending_without_reply: false,
         },
-      }
-    );
-
-    void this.messageService.recordBotMessage(
-      context.chat.id,
-      result.message_id,
-      response,
-      message.message_id,
-      result.date
-    );
+      })
+      .catch((error) =>
+        this.logger.error("Failed to send character response message", error)
+      );
 
     return next();
   }
@@ -171,7 +184,8 @@ export class CharacterController {
     this.userService
       .setIgnore(context.chat.id, context.from.id, true)
       .then(() => {
-        context.sendMessage(
+        this.messageService.sendMessage(
+          context.chat.id,
           "You will be ignored. If you want to cleanup history, use `/forgetme` too.",
           {
             reply_parameters: {
@@ -184,13 +198,17 @@ export class CharacterController {
       })
       .catch((error) => {
         this.logger.error("Failed to update user ignore status", error);
-        context.sendMessage("Failed to update your ignore status!", {
-          reply_parameters: {
-            message_id: message.message_id,
-            chat_id: context.chat.id,
-            allow_sending_without_reply: true,
-          },
-        });
+        this.messageService.sendMessage(
+          context.chat.id,
+          "Failed to update your ignore status!",
+          {
+            reply_parameters: {
+              message_id: message.message_id,
+              chat_id: context.chat.id,
+              allow_sending_without_reply: true,
+            },
+          }
+        );
       });
   }
 
@@ -204,23 +222,31 @@ export class CharacterController {
     this.userService
       .setIgnore(context.chat.id, context.from.id, false)
       .then(() => {
-        context.sendMessage("You will no longer be ignored.", {
-          reply_parameters: {
-            message_id: message.message_id,
-            chat_id: context.chat.id,
-            allow_sending_without_reply: true,
-          },
-        });
+        this.messageService.sendMessage(
+          context.chat.id,
+          "You will no longer be ignored.",
+          {
+            reply_parameters: {
+              message_id: message.message_id,
+              chat_id: context.chat.id,
+              allow_sending_without_reply: true,
+            },
+          }
+        );
       })
       .catch((error) => {
         this.logger.error("Failed to update user ignore status", error);
-        context.sendMessage("Failed to update your ignore status!", {
-          reply_parameters: {
-            message_id: message.message_id,
-            chat_id: context.chat.id,
-            allow_sending_without_reply: true,
-          },
-        });
+        this.messageService.sendMessage(
+          context.chat.id,
+          "Failed to update your ignore status!",
+          {
+            reply_parameters: {
+              message_id: message.message_id,
+              chat_id: context.chat.id,
+              allow_sending_without_reply: true,
+            },
+          }
+        );
       });
   }
 

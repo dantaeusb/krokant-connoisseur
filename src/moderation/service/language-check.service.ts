@@ -13,7 +13,7 @@ const getEmojiRegex = require("emoji-regex");
 
 @Injectable()
 export class LanguageCheckService {
-  private readonly logger = new Logger(LanguageCheckService.name);
+  private readonly logger = new Logger("Moderation/LanguageCheckService");
 
   private static ASCII_CHARACTERS = "\x20-\x7E"; // Basic ASCII characters
   private static ENGLISH_LETTERS = "A-Za-z"; // English letters only
@@ -24,9 +24,10 @@ export class LanguageCheckService {
     "!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?`~\n"; // Common symbols
   private static MATH_SYMBOLS = "\u2200-\u22FF"; // Mathematical operators
   private static FORMATTING_SYMBOLS = "\u2000-\u206F\u00A0"; // Formatting symbols, nbsp
+  private static CURRENCY_SYMBOLS = "\u20A0-\u20CF"; // Currency symbols
 
   private static SUPPORTED_LANGUAGES = ["en", "ru", "pt"];
-  private static BASE_PATTERN_CHARS = `${LanguageCheckService.ASCII_CHARACTERS}${LanguageCheckService.DIGITS}${LanguageCheckService.COMMON_SYMBOLS}${LanguageCheckService.MATH_SYMBOLS}${LanguageCheckService.FORMATTING_SYMBOLS}`;
+  private static BASE_PATTERN_CHARS = `${LanguageCheckService.ASCII_CHARACTERS}${LanguageCheckService.DIGITS}${LanguageCheckService.COMMON_SYMBOLS}${LanguageCheckService.MATH_SYMBOLS}${LanguageCheckService.FORMATTING_SYMBOLS}${LanguageCheckService.CURRENCY_SYMBOLS}`;
   private static LANGUAGE_CHARSETS = {
     en: LanguageCheckService.ENGLISH_LETTERS,
     ru: LanguageCheckService.RUSSIAN_LETTERS,
@@ -156,9 +157,13 @@ export class LanguageCheckService {
   public async cooldownLanguageWarnings() {
     const cooldownDate = new Date(Date.now() - 30 * 60 * 1000); // 30 minutes ago
 
-    await this.languageWarnEntityModel.updateMany(
+    const results = await this.languageWarnEntityModel.updateMany(
       { updatedAt: { $lt: cooldownDate }, count: { $gt: 0 } },
       { $inc: { count: -1 } }
+    );
+
+    this.logger.log(
+      `Cooled down ${results.modifiedCount} language warnings.`
     );
   }
 }

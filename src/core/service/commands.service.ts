@@ -9,8 +9,17 @@ import {
   BotCommandScopeAllPrivateChats,
 } from "@telegraf/types/settings";
 import { Semaphore } from "async-mutex";
-
 import { BotCommand } from "@telegraf/types/manage";
+
+type BotCommandScopeType =
+  | BotCommandScopeAllPrivateChats["type"]
+  | BotCommandScopeAllGroupChats["type"]
+  | BotCommandScopeAllChatAdministrators["type"];
+
+type ExtendedBotCommand = BotCommand & {
+  forModule: string;
+  detailedDescription?: string;
+};
 
 @Injectable()
 export class CommandsService {
@@ -18,20 +27,24 @@ export class CommandsService {
 
   private wiped = false;
   private initializationSemaphore = new Semaphore(1);
+  private commands: Map<BotCommandScopeType, Array<ExtendedBotCommand>> = new Map();
 
   constructor(
     @InjectBot(ClankerBotName)
     private readonly bot: Telegraf<Context>
-  ) {}
+  ) {
+    this.commands.set("all_private_chats", []);
+    this.commands.set("all_group_chats", []);
+    this.commands.set("all_chat_administrators", []);
+  }
 
   public async extendCommands(
-    scope:
-      | BotCommandScopeAllPrivateChats["type"]
-      | BotCommandScopeAllGroupChats["type"]
-      | BotCommandScopeAllChatAdministrators["type"],
-    commands: Array<BotCommand>,
+    scope: BotCommandScopeType,
+    commands: Array<ExtendedBotCommand>,
     forModule: string
   ): Promise<boolean> {
+    // @todo: [HIGH] Semaphore probably should work for every scope separately.
+    // otherwise two simultaneous calls for different scopes will overwrite each other.
     await this.initializationSemaphore
       .acquire(1)
       .then(async ([_, release]) => {
@@ -63,8 +76,8 @@ export class CommandsService {
               type: scope,
             },
           })
-          .then((existingCommands) => {
-            this.bot.telegram.setMyCommands(
+          .then(async (existingCommands) => {
+            await this.bot.telegram.setMyCommands(
               [...existingCommands, ...commands],
               {
                 scope: {
@@ -72,6 +85,9 @@ export class CommandsService {
                 },
               }
             );
+
+            this.commands.get(scope).push(...commands);
+
             this.logger.debug(`Set ${forModule} commands for scope ${scope}`);
           })
           .catch((error) => {
@@ -80,5 +96,69 @@ export class CommandsService {
       });
 
     return true;
+  }
+
+  public getCommands(scope: BotCommandScopeType): Array<ExtendedBotCommand> {
+    return this.commands.get(scope) || [];
+  }
+
+  /**
+   * Extracts command arguments from a message text.
+   * I.e. /ban 1 day -> ["1", "day"]
+   * @param text
+   */
+  public getCommandMessageArguments(text: string): Array<string> {
+    const parts = text.trim().split(" ");
+    if (parts.length <= 1) {
+      return [];
+    }
+    parts.shift();
+    return parts;
+  }
+
+  /**
+   * Warning! It's mutating the args array if the first arg looks like a handle!
+   * @param args
+   */
+  public extractCommandGroupHandleMut(args: string[]): string | null {
+    if (args.length === 0) {
+      return null;
+    }
+
+    let supposedHandle = args[0].trim();
+
+    if (supposedHandle.startsWith("!") && supposedHandle.length > 1) {
+      supposedHandle = supposedHandle.slice(1);
+    }
+
+    if (/^[a-zA-Z0-9_]{5,32}$/.test(supposedHandle)) {
+      args.shift();
+      return supposedHandle;
+    }
+
+    return null;
+  }
+
+  /**
+   * Warning! It's mutating the args array if the first arg looks like a handle!
+   * @param args
+   */
+  public extractCommandHandleMut(args: string[]): string | null {
+    if (args.length === 0) {
+      return null;
+    }
+
+    let supposedHandle = args[0].trim();
+
+    if (supposedHandle.startsWith("@") && supposedHandle.length > 1) {
+      supposedHandle = supposedHandle.slice(1);
+    }
+
+    if (/^[a-zA-Z0-9_]{5,32}$/.test(supposedHandle)) {
+      args.shift();
+      return supposedHandle;
+    }
+
+    return null;
   }
 }

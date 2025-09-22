@@ -47,6 +47,11 @@ export class LoggingController {
               .recordMessage(context)
               .then(() => resolve())
               .catch(reject);
+          } else {
+            this.messageService
+              .recordHiddenMessage(context)
+              .then(() => resolve())
+              .catch(reject);
           }
 
           return resolve();

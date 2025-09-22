@@ -37,9 +37,13 @@ export class ToolsController {
         "all_chat_administrators",
         [
           {
+            forModule: "Core",
             command: "group_create",
             description:
               "!<group_handle> Create a ping group with the given handle",
+            detailedDescription:
+              "Allows admins to create groups that can be pinged " +
+              "by typing !<group_handle> in the chat. Users can add themselves or be added by admins.",
           },
         ],
         "Tools"
@@ -48,9 +52,13 @@ export class ToolsController {
         "all_group_chats",
         [
           {
+            forModule: "Core",
             command: "group_add",
             description:
               "!<group_handle> [<user_handle>]? Add a user to the ping group (or yourself if no user is specified)",
+            detailedDescription:
+              "Allows users to add themselves to a ping group by specifying the group handle." +
+              "Admins can add other users by tagging them in the command message.",
           },
         ],
         "Tools"
@@ -70,7 +78,7 @@ export class ToolsController {
       return;
     }
 
-    const commandArguments = this.messageService.getCommandMessageArguments(
+    const commandArguments = this.commandsService.getCommandMessageArguments(
       context.text
     );
 
@@ -80,7 +88,7 @@ export class ToolsController {
     }
 
     const handle =
-      this.messageService.extractCommandGroupHandleMut(commandArguments);
+      this.commandsService.extractCommandGroupHandleMut(commandArguments);
 
     if (!handle) {
       context.reply(
@@ -119,12 +127,12 @@ export class ToolsController {
       context
     );
 
-    const commandArguments = this.messageService.getCommandMessageArguments(
+    const commandArguments = this.commandsService.getCommandMessageArguments(
       context.text
     );
 
     const handle =
-      this.messageService.extractCommandGroupHandleMut(commandArguments);
+      this.commandsService.extractCommandGroupHandleMut(commandArguments);
 
     if (!handle) {
       context.reply(

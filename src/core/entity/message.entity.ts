@@ -10,7 +10,7 @@ export class MessageEntity {
   @Prop({ required: true, index: true })
   chatId: number;
 
-  @Prop({ required: true })
+  @Prop({ required: true, index: true })
   messageId: number;
 
   @Prop()
@@ -28,15 +28,17 @@ export class MessageEntity {
   @Prop()
   forwardedFromUserId?: number;
 
+  /**
+   * UUID of the conversation this message is part of,
+   */
+  /*@Prop()
+  conversationUuid?: string;*/
+
   // No need for prop its managed by timestamps: true
+  updatedAt?: Date;
   createdAt?: Date;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(MessageEntity);
-MessageSchema.index({ messageId: 1 });
-// All messages in a chat
-MessageSchema.index({ chatId: 1 });
-// All messages from a user in a chat
-MessageSchema.index({ userId: 1 });
 // Expire messages after 30 days
 MessageSchema.index({ createdAt: 1 }, { expireAfterSeconds: 2592000 });

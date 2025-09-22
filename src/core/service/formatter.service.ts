@@ -3,7 +3,7 @@ import { REACTION_CONSTANTS } from "@core/constants/reaction.constants";
 
 @Injectable()
 export class FormatterService {
-  public escapeMarkdownV2(text: string): string {
+  public escapeMarkdown(text: string): string {
     return text.replace(/([#+=|{}])/gm, "\\$1");
   }
 
@@ -19,7 +19,7 @@ export class FormatterService {
         return REACTION_CONSTANTS.THREE;
       case 4:
         return REACTION_CONSTANTS.FOUR;
-      /*case 5:
+      case 5:
         return REACTION_CONSTANTS.FIVE;
       case 6:
         return REACTION_CONSTANTS.SIX;
@@ -28,7 +28,7 @@ export class FormatterService {
       case 8:
         return REACTION_CONSTANTS.EIGHT;
       case 9:
-        return REACTION_CONSTANTS.NINE;*/
+        return REACTION_CONSTANTS.NINE;
       default:
         return REACTION_CONSTANTS.CROSS;
     }

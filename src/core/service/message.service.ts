@@ -1,14 +1,19 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { Context } from "telegraf";
+import { Context, Telegraf } from "telegraf";
 import { Update } from "telegraf/types";
-import { UserService } from "@core/service/user.service";
+import { ExtraReplyMessage } from "telegraf/typings/telegram-types";
+import { ParseMode, Message } from "@telegraf/types/message";
 import { InjectModel } from "@nestjs/mongoose";
+import { InjectBot } from "nestjs-telegraf";
 import { Model, pluralize } from "mongoose";
+import { ClankerBotName } from "@/app.constants";
 import {
   HydratedMessageDocument,
   MessageEntity,
 } from "@core/entity/message.entity";
-import { ConfigService } from "@core/service/config.service";
+import { ConfigService } from "./config.service";
+import { UserService } from "./user.service";
+import { FormatterService } from "./formatter.service";
 
 /**
  * General message utilities.
@@ -18,11 +23,48 @@ export class MessageService {
   private readonly logger = new Logger("Core/MessageService");
 
   constructor(
+    @InjectBot(ClankerBotName)
+    private readonly bot: Telegraf<Context>,
     @InjectModel(MessageEntity.COLLECTION_NAME)
     private messageEntityModel: Model<MessageEntity>,
+    private readonly formatterService: FormatterService,
     private readonly configService: ConfigService,
     private readonly userService: UserService
   ) {}
+
+  /**
+   * Sends a message through Telegram API and records it in the database to keep
+   * track of conversation history.
+   * @param chatId
+   * @param text
+   * @param parseMode
+   * @param extra
+   */
+  public async sendMessage(
+    chatId: number,
+    text: string,
+    extra?: ExtraReplyMessage
+  ): Promise<Message.TextMessage> {
+    if (extra && "parseMode" in extra && extra.parseMode === "Markdown") {
+      text = this.formatterService.escapeMarkdown(text);
+    }
+
+    const message = await this.bot.telegram.sendMessage(chatId, text, {
+      ...extra,
+    });
+
+    this.recordOwnMessage(
+      chatId,
+      message.message_id,
+      text,
+      message.reply_to_message?.message_id || null,
+      message.date
+    ).catch((error) => {
+      this.logger.error("Failed to record bot message:", error);
+    });
+
+    return message;
+  }
 
   public async getTargetUserFromMessage(
     context: Context<Update.MessageUpdate>
@@ -94,66 +136,6 @@ export class MessageService {
     return null;
   }
 
-  /**
-   * Extracts command arguments from a message text.
-   * I.e. /ban 1 day -> ["1", "day"]
-   * @param text
-   */
-  public getCommandMessageArguments(text: string): Array<string> {
-    const parts = text.trim().split(" ");
-    if (parts.length <= 1) {
-      return [];
-    }
-    parts.shift();
-    return parts;
-  }
-
-  /**
-   * Warning! It's mutating the args array if the first arg looks like a handle!
-   * @param args
-   */
-  public extractCommandGroupHandleMut(args: string[]): string | null {
-    if (args.length === 0) {
-      return null;
-    }
-
-    let supposedHandle = args[0].trim();
-
-    if (supposedHandle.startsWith("!") && supposedHandle.length > 1) {
-      supposedHandle = supposedHandle.slice(1);
-    }
-
-    if (/^[a-zA-Z0-9_]{5,32}$/.test(supposedHandle)) {
-      args.shift();
-      return supposedHandle;
-    }
-
-    return null;
-  }
-
-  /**
-   * Warning! It's mutating the args array if the first arg looks like a handle!
-   * @param args
-   */
-  public extractCommandHandleMut(args: string[]): string | null {
-    if (args.length === 0) {
-      return null;
-    }
-
-    let supposedHandle = args[0].trim();
-
-    if (supposedHandle.startsWith("@") && supposedHandle.length > 1) {
-      supposedHandle = supposedHandle.slice(1);
-    }
-
-    if (/^[a-zA-Z0-9_]{5,32}$/.test(supposedHandle)) {
-      args.shift();
-      return supposedHandle;
-    }
-
-    return null;
-  }
-
   public async recordMessage(
     context: Context<Update.MessageUpdate>
   ): Promise<HydratedMessageDocument | void> {
@@ -190,7 +172,50 @@ export class MessageService {
     });
   }
 
-  public async recordBotMessage(
+  /**
+   * Records a message with hidden text if user preferred to not opt-in in
+   * bot conversations. Tried without it, but then bot hallucinates about
+   * other messages and loses conversation threads. It works better when
+   * it at least knows that something was said. - @dantaeusb
+   * @param context
+   */
+  public async recordHiddenMessage(
+    context: Context<Update.MessageUpdate>
+  ): Promise<HydratedMessageDocument | void> {
+    if (!context.message) {
+      return;
+    }
+
+    const message: MessageEntity = {
+      chatId: context.chat.id,
+      messageId: context.message.message_id,
+      userId: context.message.from.id,
+      text: "[Hidden by user preference]",
+      date: new Date(context.message.date * 1000),
+    };
+
+    if (
+      "forward_origin" in context.message &&
+      context.message.forward_origin &&
+      "sender_user" in context.message.forward_origin
+    ) {
+      message.forwardedFromUserId =
+        context.message.forward_origin.sender_user.id;
+    }
+
+    if (
+      "reply_to_message" in context.message &&
+      context.message.reply_to_message
+    ) {
+      message.replyToMessageId = context.message.reply_to_message.message_id;
+    }
+
+    return this.messageEntityModel.create(message).catch((error) => {
+      this.logger.error("Failed to record hidden message:", error);
+    });
+  }
+
+  public async recordOwnMessage(
     chatId: number,
     messageId: number,
     text: string,

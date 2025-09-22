@@ -6,6 +6,7 @@ import { MessageService } from "@core/service/message.service";
 import { Content } from "@google/genai";
 import { MessageEntity } from "@core/entity/message.entity";
 import { UserService } from "@core/service/user.service";
+import { CommandsService } from "@core/service/commands.service";
 
 type MessageEntityWithChain = MessageEntity & {
   isInChain?: boolean;
@@ -21,7 +22,8 @@ export class CharacterService {
     private readonly configService: ConfigService,
     private readonly geminiService: GeminiService,
     private readonly messageService: MessageService,
-    private readonly userService: UserService
+    private readonly userService: UserService,
+    private readonly commandsService: CommandsService
   ) {}
 
   public async respond(
@@ -36,19 +38,46 @@ export class CharacterService {
         parts: [
           {
             text:
+              `Some of your responses might be sent by another models or automations ` +
+              `to avoid wasting resources. Respond in the same style as you normally would.\n`
+          },
+        ],
+      },
+      {
+        role: "user",
+        parts: [
+          {
+            text:
               `You are replying to ${toUser?.name ?? "unknown user"}\n` +
               `Their messages are starting with [${this.userService.getUniqueIdentifier(
                 toUser
               )}]\n` +
               `Messages starting with > belong to the current conversation, pay more attention to them.\n` +
-              `Messages without > may be irrelevant but can be used for context` +
-              `Do not add [] or > to your messages.`,
+              `Messages without > may be irrelevant but can be used for context\n` +
+              `Do not add [] or > to your messages.\n` +
+              `\n`,
           },
         ],
       },
     ];
 
     const config = await this.configService.getConfig(chatId);
+
+    const commands = this.commandsService.getCommands("all_group_chats");
+    let commandInfoPrompt = "Users can utilize following bot commands:\n";
+    commands.forEach((cmd) => {
+      commandInfoPrompt += `\`/${cmd.command}\` - ${
+        cmd.detailedDescription ?? cmd.description
+      }\n`;
+    });
+    promptList.unshift({
+      role: "user",
+      parts: [
+        {
+          text: commandInfoPrompt,
+        },
+      ],
+    });
 
     this.logger.log(config.characterExtraPrompt);
 
