@@ -187,7 +187,7 @@ export class CharacterService {
       Array<MessageEntity>,
       Array<MessageEntityWithChain>
     ] = await Promise.all([
-      this.messageService.getLatestMessages(chatId, 100),
+      this.messageService.getLatestMessages(chatId, 200),
       this.messageService.getMessageChain(chatId, messageId),
     ]);
 
