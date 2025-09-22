@@ -2,7 +2,9 @@ import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { BanEntity } from "@moderation/entity/ban.entity";
 import { WarnEntity } from "@moderation/entity/warn.entity";
 import { PersonEntity } from "@character/entity/person.entity";
-import mongoose from "mongoose";
+import { HydratedDocument, Types } from "mongoose";
+
+export type UserDocument = HydratedDocument<UserEntity>;
 
 @Schema({ timestamps: true })
 export class UserEntity {
@@ -26,13 +28,13 @@ export class UserEntity {
   @Prop()
   name: string;
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: "CharacterEntity" })
+  @Prop({ type: Types.ObjectId, ref: "CharacterEntity" })
   character: PersonEntity;
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: "WarnEntity" })
+  @Prop({ type: Types.ObjectId, ref: "WarnEntity" })
   warn: WarnEntity;
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: "BanEntity" })
+  @Prop({ type: Types.ObjectId, ref: "BanEntity" })
   ban: BanEntity;
 }
 

@@ -5,10 +5,11 @@
   "scripts": {
     "build": "tsc && tsc-alias",
     "dev": "ts-node -r tsconfig-paths/register src/index.ts",
+    "dev:verbose": "ts-node -r tsconfig-paths/register src/index.ts -- --verbose",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug 0.0.0.0:9229 --watch",
-    "start:prod": "node dist/index.js",
+    "start:prod": "NODE_ENV=production node dist/index.js",
     "watch": "nodemon --watch src --exec \"ts-node -r tsconfig-paths/register src/index.ts\" -e ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

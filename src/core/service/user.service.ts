@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { UserEntity } from "../entity/user.entity";
+import { UserDocument, UserEntity } from "../entity/user.entity";
 import { Model } from "mongoose";
 import { InjectModel } from "@nestjs/mongoose";
 import { User } from "@telegraf/types/manage";
@@ -29,7 +29,7 @@ export class UserService {
     chatId: number,
     userId: number,
     createIfNotExists?: User
-  ): Promise<UserEntity> {
+  ): Promise<UserDocument> {
     const user = await this.userEntityModel
       .findOne({
         chatId: chatId.toString(),
@@ -58,11 +58,19 @@ export class UserService {
   public async getUsers(
     chatId: number,
     userIds: number[]
-  ): Promise<UserEntity[]> {
+  ): Promise<UserDocument[]> {
     return this.userEntityModel
       .find({
         chatId: chatId,
         userId: { $in: userIds },
+      })
+      .exec();
+  }
+
+  public async getAllUsersInChat(chatId: number): Promise<UserDocument[]> {
+    return this.userEntityModel
+      .find({
+        chatId: chatId,
       })
       .exec();
   }

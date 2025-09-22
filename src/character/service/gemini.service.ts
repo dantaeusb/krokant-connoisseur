@@ -125,6 +125,7 @@ export class GeminiService {
 
   /**
    * Cool shit: https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/control-generated-output
+   * As it's probably the most important part, let's use only the best model
    *
    * @param prompt
    * @param systemPrompt
@@ -134,7 +135,7 @@ export class GeminiService {
     systemPrompt?: string
   ): Promise<string | null> {
     const result = await this.googleGenAI.models.generateContent({
-      model: "gemini-1.5-turbo",
+      model: "gemini-2.5-pro",
       contents: [
         {
           role: "system",

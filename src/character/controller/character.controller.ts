@@ -10,14 +10,15 @@ import {
 import { Telegraf, Context } from "telegraf";
 import { ClankerBotName } from "@/app.constants";
 import { Logger, UseGuards } from "@nestjs/common";
-import { CharacterService } from "@character/service/character.service";
 import { Update as TelegramUpdate } from "telegraf/types";
-import { TriggerService } from "@character/service/trigger.service";
-import { MessageService } from "@core/service/message.service";
 import { UserService } from "@core/service/user.service";
 import { FormatterService } from "@core/service/formatter.service";
 import { AdminGuard } from "@core/guard/admin.guard";
 import { CommandsService } from "@core/service/commands.service";
+import { MessageService } from "@core/service/message.service";
+import { TriggerService } from "../service/trigger.service";
+import { CharacterService } from "../service/character.service";
+import { PersonService } from "../service/person.service";
 
 /**
  * Handles character talking and responses.
@@ -37,6 +38,7 @@ export class CharacterController {
     private readonly triggerService: TriggerService,
     private readonly messageService: MessageService,
     private readonly userService: UserService,
+    private readonly personService: PersonService,
     private readonly formatterService: FormatterService
   ) {
     Promise.all([
@@ -319,6 +321,20 @@ export class CharacterController {
         chat_id: context.chat.id,
         allow_sending_without_reply: true,
       },
+    });
+  }
+
+  @Command("personify")
+  @UseGuards(AdminGuard)
+  async personifyUsers(
+    @Ctx() context: Context<TelegramUpdate.MessageUpdate>
+  ): Promise<void> {
+    this.logger.debug("Handling /personify command");
+
+    const users = await this.userService.getAllUsersInChat(context.chat.id);
+
+    users.forEach((user) => {
+      this.personService.getPerson(context.chat.id, user.userId, true);
     });
   }
 }

@@ -5,6 +5,7 @@ import { CoreModule } from "@core/core.module";
 import { GeminiService } from "./service/gemini.service";
 import { CharacterService } from "./service/character.service";
 import { TriggerService } from "./service/trigger.service";
+import { PersonService } from "./service/person.service";
 import { PersonEntity, PersonEntitySchema } from "./entity/person.entity";
 
 @Module({
@@ -19,6 +20,7 @@ import { PersonEntity, PersonEntitySchema } from "./entity/person.entity";
     GeminiService,
     CharacterService,
     TriggerService,
+    PersonService,
   ],
   exports: [CharacterService],
 })

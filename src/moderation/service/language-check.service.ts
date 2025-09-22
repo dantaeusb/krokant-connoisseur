@@ -34,7 +34,7 @@ export class LanguageCheckService {
     pt: LanguageCheckService.PORTUGUESE_LETTERS,
   };
 
-  private static LANGUAGE_WARN_THRESHOLD = [3, 7, 8];
+  private static LANGUAGE_SOFT_WARNS_TO_WARN = 5;
 
   private emojiRegex: RegExp = getEmojiRegex() as RegExp;
 
@@ -111,16 +111,8 @@ export class LanguageCheckService {
     languageWarning.count++;
     await languageWarning.save();
 
-    const maxCount =
-      LanguageCheckService.LANGUAGE_WARN_THRESHOLD[
-        LanguageCheckService.LANGUAGE_WARN_THRESHOLD.length - 1
-      ];
-
     if (
-      LanguageCheckService.LANGUAGE_WARN_THRESHOLD.includes(
-        languageWarning.count
-      ) ||
-      languageWarning.count >= maxCount
+      languageWarning.count >= LanguageCheckService.LANGUAGE_SOFT_WARNS_TO_WARN
     ) {
       const result = await this.moderationService.warnUser(
         chatId,
@@ -162,9 +154,7 @@ export class LanguageCheckService {
       { $inc: { count: -1 } }
     );
 
-    this.logger.log(
-      `Cooled down ${results.modifiedCount} language warnings.`
-    );
+    this.logger.log(`Cooled down ${results.modifiedCount} language warnings.`);
   }
 }
 

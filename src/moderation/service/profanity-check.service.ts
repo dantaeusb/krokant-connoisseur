@@ -23,7 +23,7 @@ export class ProfanityCheckService {
           return words.some(
             (word) => word.toLowerCase().indexOf(filter.filter as string) !== -1
           );
-        } else if (filter.type === "regexp") {
+        }/* else if (filter.type === "regexp") {
           if (!(filter.filter instanceof RegExp)) {
             this.logger.error(
               `Profanity filter is not a valid RegExp: ${filter.filter}`
@@ -47,7 +47,7 @@ export class ProfanityCheckService {
           } else {
             return words.some((word) => (filter.filter as RegExp).test(word));
           }
-        }
+        }*/
       }
     );
 
