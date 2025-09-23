@@ -109,11 +109,22 @@ export class CharacterService {
 
     const users = await this.userService.getUsers(chatId, participantIds);
 
-    this.logger.debug(users);
-
     const usersWithPersons = await this.personService.joinPersonToUsers(users);
 
-    this.logger.debug(usersWithPersons);
+    // @todo: [MID] may not be
+
+    promptList.push({
+      role: "user",
+      parts: [
+        {
+          text:
+            `Use the context of the conversation and information about users ` +
+            `to inform your responses. Do not directly disclose any information ` +
+            `about users, instead use it to make your responses more relevant ` +
+            `and personalized. Never just list information you have.\n\n`,
+        },
+      ],
+    });
 
     usersWithPersons.forEach((user) => {
       if (
@@ -124,7 +135,7 @@ export class CharacterService {
       ) {
         let personDescription = `Information about conversation participant [${this.userService.getUniqueIdentifier(
           user
-        )}]:\n`;
+        )}] – use it but do not directly disclose it:\n`;
         if (user.person.names.length > 0) {
           personDescription += `Their other names or names are: ${user.person.names.join(
             ", "
