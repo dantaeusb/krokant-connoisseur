@@ -51,7 +51,7 @@ export class CharacterService {
           {
             text:
               `You are replying to ${toUser?.name ?? "unknown user"}\n` +
-              `Their messages are starting with [${this.userService.getUniqueIdentifier(
+              `Their messages are starting with [${this.userService.getSafeUniqueIdentifier(
                 toUser
               )}]\n` +
               `Messages starting with > belong to the current conversation, pay more attention to them.\n` +
@@ -133,7 +133,7 @@ export class CharacterService {
           user.person.characteristics.length > 0 ||
           user.person.thoughts.length > 0)
       ) {
-        let personDescription = `Information about conversation participant [${this.userService.getUniqueIdentifier(
+        let personDescription = `Information about conversation participant [${this.userService.getSafeUniqueIdentifier(
           user
         )}] – use it but do not directly disclose it:\n`;
         if (user.person.names.length > 0) {
@@ -284,7 +284,7 @@ export class CharacterService {
         const user = participants.find((u) => u.userId === message.userId);
         let prefix = isModel
           ? ""
-          : `[${this.userService.getUniqueIdentifier(user)}]`;
+          : `[${this.userService.getSafeUniqueIdentifier(user)}]`;
 
         if (message.isInChain) {
           prefix = `> ${prefix}`;

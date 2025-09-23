@@ -121,7 +121,7 @@ export class ModerationController {
 
     const user = await this.userService.getUser(
       context.chat.id,
-      context.from.id,
+      targetUserId,
       context.from
     );
 
@@ -201,23 +201,23 @@ export class ModerationController {
       targetUserId
     );
 
-    const user = await this.userService.getUser(
+    const targetUser = await this.userService.getUser(
       context.chat.id,
-      context.from.id,
+      targetUserId,
       context.from
     );
 
-    const name = user?.name || "User";
+    const name = targetUser?.name || "User";
 
     if (result === BanResult.BANNED) {
       void context.react("👌");
-      this.reply(context, message, `${name} has been banned.`);
+      await this.reply(context, message, `${name} has been banned.`);
     } else if (result === BanResult.PERMA_BANNED) {
       void context.react("👌");
-      this.reply(context, message, `${name} has been banned forever.`);
+      await this.reply(context, message, `${name} has been banned forever.`);
     } else {
       void context.react("🤷‍♂");
-      this.reply(context, message, `Failed to ban ${name}.`);
+      await this.reply(context, message, `Failed to ban ${name}.`);
     }
   }
 
@@ -239,14 +239,23 @@ export class ModerationController {
       return;
     }
 
-    await this.moderationService
-      .unbanUser(message.chat.id, targetUserId)
-      .then(() => {
-        this.reply(context, message, "User has been unbanned.");
-      })
-      .catch(() => {
-        this.reply(context, message, "Failed to unban user.");
-      });
+    try {
+      await this.moderationService.unbanUser(message.chat.id, targetUserId);
+    } catch (error) {
+      this.logger.error("Error unbanning user:", error);
+      void context.react("🤷‍♂");
+      return;
+    }
+
+    const targetUser = await this.userService.getUser(
+      context.chat.id,
+      targetUserId,
+      context.from
+    );
+
+    const name = this.userService.getSafeUserName(targetUser);
+
+    await this.reply(context, message, `${name} has been unbanned.`);
   }
 
   @Command("permaban")

@@ -13,9 +13,25 @@ export class UserService {
     private userEntityModel: Model<UserEntity>
   ) {}
 
-  public getUniqueIdentifier(user?: UserEntity): string {
+  public getSafeUniqueIdentifier(user?: UserEntity): string {
     if (!user) {
       return "Unknown";
+    }
+
+    if (user.username) {
+      return `@${user.username}`;
+    }
+
+    return `ID:${user.userId}`;
+  }
+
+  public getSafeUserName(user?: UserEntity): string {
+    if (!user) {
+      return "Unknown";
+    }
+
+    if (user.name) {
+      return user.name;
     }
 
     if (user.username) {
