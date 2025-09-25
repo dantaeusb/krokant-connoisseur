@@ -315,13 +315,53 @@ export class CharacterController {
   ): Promise<void> {
     this.logger.debug("Handling /forgetme command");
 
-    context.sendMessage("Can't do that yet ask @dantaeusb to do that.", {
-      reply_parameters: {
-        message_id: message.message_id,
-        chat_id: context.chat.id,
-        allow_sending_without_reply: true,
-      },
-    });
+    const userId = context.from.id;
+    const chatId = context.chat.id;
+
+    try {
+      const hiddenMessagesCount = await this.messageService.hideUserMessages(
+        chatId,
+        userId
+      );
+
+      // Clear personal data from person entity
+      const personalDataCleared = await this.personService.clearPersonalData(
+        chatId,
+        userId
+      );
+
+      // Set user to ignore to prevent future data collection
+      await this.userService.setIgnore(chatId, userId, true);
+
+      this.logger.log(
+        `User ${userId} requested data deletion. Hidden ${hiddenMessagesCount} messages, cleared personal data: ${personalDataCleared}`
+      );
+
+      await context.sendMessage(
+        `All your data has been deleted from my memory.\n\n` +
+        `- Set you as ignored for future interactions\n\n` +
+        `Note: Moderation records (warnings/bans) are preserved for administrative purposes.`,
+        {
+          reply_parameters: {
+            message_id: message.message_id,
+            chat_id: context.chat.id,
+            allow_sending_without_reply: true,
+          },
+        }
+      );
+    } catch (error) {
+      this.logger.error("Failed to process forgetme command", error);
+      await context.sendMessage(
+        "Failed to delete your data. Please try again or contact @dantaeusb",
+        {
+          reply_parameters: {
+            message_id: message.message_id,
+            chat_id: context.chat.id,
+            allow_sending_without_reply: true,
+          },
+        }
+      );
+    }
   }
 
   @Command("personify")

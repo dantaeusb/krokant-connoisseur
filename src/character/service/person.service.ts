@@ -84,4 +84,26 @@ export class PersonService {
 
     return await newPerson.save();
   }
+
+  /**
+   * Deletes the PersonEntity for a user as part of the forgetme command.
+   * This completely removes the person record and all associated data.
+   * @param chatId The chat ID
+   * @param userId The user ID
+   * @returns True if the person record was deleted, false if no person record existed
+   */
+  public async clearPersonalData(
+    chatId: number,
+    userId: number
+  ): Promise<boolean> {
+    const result = await this.personEntityModel
+      .deleteOne({ chatId, userId })
+      .exec();
+
+    this.logger.log(
+      `Deleted person entity for user ${userId} in chat ${chatId}. Deleted: ${result.deletedCount}`
+    );
+
+    return result.deletedCount > 0;
+  }
 }

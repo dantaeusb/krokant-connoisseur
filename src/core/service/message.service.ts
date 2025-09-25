@@ -285,4 +285,29 @@ export class MessageService {
     const rootMessage = result[0];
     return [rootMessage, ...rootMessage.replyChain];
   }
+
+  /**
+   * Updates all messages for a specific user to hide their content.
+   * Used by the forgetme command to anonymize user data.
+   * @param chatId The chat ID to search in
+   * @param userId The user ID whose messages to hide
+   * @returns The number of messages updated
+   */
+  public async hideUserMessages(
+    chatId: number,
+    userId: number
+  ): Promise<number> {
+    const result = await this.messageEntityModel
+      .updateMany(
+        { chatId: chatId, userId: userId },
+        { text: "[Hidden by user preference]" }
+      )
+      .exec();
+
+    this.logger.log(
+      `Hidden ${result.modifiedCount} messages for user ${userId} in chat ${chatId}`
+    );
+
+    return result.modifiedCount;
+  }
 }
