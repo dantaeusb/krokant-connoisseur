@@ -130,12 +130,46 @@ export class GeminiService {
    * @param prompt
    * @param systemPrompt
    */
-  public async classify(
+  public async summarizeAndRate(
     prompt: string,
     systemPrompt?: string
   ): Promise<string | null> {
     const result = await this.googleGenAI.models.generateContent({
       model: "gemini-2.5-pro",
+      contents: [
+        {
+          role: "system",
+          parts: [{ text: systemPrompt ?? "You are a helpful assistant." }],
+        },
+        { role: "user", parts: [{ text: prompt }] },
+      ],
+      config: {
+        candidateCount: 1,
+        safetySettings: this.safetySettings,
+        temperature: 0.0,
+        topP: 1.0,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+        }
+      },
+    });
+
+    this.logger.log(result.candidates);
+
+    return (
+      result.candidates[0].content.parts
+        .map((part) => part.text || "")
+        .join("\n") ?? null
+    );
+  }
+
+  public async quickRate(
+    prompt: string,
+    systemPrompt?: string
+  ): Promise<string | null> {
+    const result = await this.googleGenAI.models.generateContent({
+      model: "gemini-2.5-flash-lite",
       contents: [
         {
           role: "system",

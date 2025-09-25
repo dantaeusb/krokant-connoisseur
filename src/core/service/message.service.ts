@@ -20,6 +20,8 @@ import { FormatterService } from "./formatter.service";
  */
 @Injectable()
 export class MessageService {
+  public static readonly HIDDEN_MESSAGE_TEXT = "[Hidden by user preference]";
+
   private readonly logger = new Logger("Core/MessageService");
 
   constructor(
@@ -190,7 +192,7 @@ export class MessageService {
       chatId: context.chat.id,
       messageId: context.message.message_id,
       userId: context.message.from.id,
-      text: "[Hidden by user preference]",
+      text: MessageService.HIDDEN_MESSAGE_TEXT,
       date: new Date(context.message.date * 1000),
     };
 
