@@ -3,6 +3,7 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { PersonEntity } from "../entity/person.entity";
 import { UserDocument, UserEntity } from "@core/entity/user.entity";
+import { Cron } from "@nestjs/schedule";
 
 export type PersonifiedUser = UserEntity & {
   person?: PersonEntity;
@@ -100,10 +101,34 @@ export class PersonService {
       .deleteOne({ chatId, userId })
       .exec();
 
-    this.logger.log(
+    this.logger.debug(
       `Deleted person entity for user ${userId} in chat ${chatId}. Deleted: ${result.deletedCount}`
     );
 
     return result.deletedCount > 0;
+  }
+
+  public async countInteraction(chatId: number, userId: number): Promise<void> {
+    await this.personEntityModel
+      .findOneAndUpdate(
+        { chatId, userId },
+        { $inc: { interactionsCount: 1 } },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      )
+      .exec();
+  }
+
+  @Cron("*/15 * * * *")
+  public async cooldownInteractions() {
+    const result = await this.personEntityModel
+      .updateMany(
+        { interactionsCount: { $gt: 0 } },
+        { $inc: { interactionsCount: -1 } }
+      )
+      .exec();
+
+    this.logger.log(
+      `Reset daily interactions for ${result.modifiedCount} persons`
+    );
   }
 }

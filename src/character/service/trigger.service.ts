@@ -1,4 +1,6 @@
 import { Injectable } from "@nestjs/common";
+import { PersonService } from "./person.service";
+import { Cron } from "@nestjs/schedule";
 
 @Injectable()
 export class TriggerService {
@@ -12,6 +14,13 @@ export class TriggerService {
     { phrase: "KrokantConnoisseurChatBot", chance: 1 },
   ];
 
+  constructor(private readonly personService: PersonService) {}
+
+  /**
+   * @todo: better
+   * @param text
+   * @param userId
+   */
   public triggered(text: string): boolean {
     const trigger = this.getTrigger(text);
 
@@ -20,6 +29,15 @@ export class TriggerService {
     }
 
     return false;
+  }
+
+  public async isOnCooldown(chatId: number, userId: number): Promise<boolean> {
+    const person = await this.personService.getPerson(chatId, userId);
+    if (!person) {
+      return false;
+    }
+
+    return person.interactionsCount > 5;
   }
 
   public getTrigger(text: string): Trigger | null {

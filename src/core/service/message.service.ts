@@ -39,16 +39,21 @@ export class MessageService {
    * track of conversation history.
    * @param chatId
    * @param text
-   * @param parseMode
    * @param extra
+   * @param avoidPings
    */
   public async sendMessage(
     chatId: number,
     text: string,
-    extra?: ExtraReplyMessage
+    extra?: ExtraReplyMessage,
+    avoidPings = true
   ): Promise<Message.TextMessage> {
-    if (extra && "parseMode" in extra && extra.parseMode === "Markdown") {
+    if (extra && "parseMode" in extra && extra.parseMode === "MarkdownV2") {
       text = this.formatterService.escapeMarkdown(text);
+    }
+
+    if (avoidPings) {
+      text = this.formatterService.escapeHandles(text);
     }
 
     const message = await this.bot.telegram.sendMessage(chatId, text, {

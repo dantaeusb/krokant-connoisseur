@@ -36,6 +36,9 @@ export class PersonEntity {
   @Prop({ default: 0 })
   knowledge: number;
 
+  @Prop({ default: 0 })
+  interactionsCount: number;
+
   /**
    * Rimworld-like list of thoughts depending on actions and events
    */

@@ -1,10 +1,28 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { REACTION_CONSTANTS } from "@core/constants/reaction.constants";
 
 @Injectable()
 export class FormatterService {
+  private static TELEGRAM_UNESCAPED_HANDLE_REGEX =
+    /`[^`]*`|@([a-zA-Z0-9_]{5,32})/g;
+
+  private readonly logger = new Logger("Core/FormatterService");
+
   public escapeMarkdown(text: string): string {
     return text.replace(/([#+=|{}])/gm, "\\$1");
+  }
+
+  public escapeHandles(text: string): string {
+    return text.replace(
+      FormatterService.TELEGRAM_UNESCAPED_HANDLE_REGEX,
+      (match, handle) => {
+        if (handle) {
+          this.logger.log("Found handle to escape: " + handle);
+          return `\`@${handle}\``;
+        }
+        return match;
+      }
+    );
   }
 
   public getReactionFromNumber(num: number): bigint {

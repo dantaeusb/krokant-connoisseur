@@ -7,7 +7,7 @@ import { PingGroupEntity } from "../entity/ping-group.entity";
 
 @Injectable()
 export class PingGroupService {
-  private static GROUP_HANDLE_REGEX = /!([a-zA-Z0-9_]+)/;
+  private static GROUP_HANDLE_REGEX = /!([a-zA-Z0-9_]+)/g;
 
   private readonly logger = new Logger("Core/PingGroupService");
 
