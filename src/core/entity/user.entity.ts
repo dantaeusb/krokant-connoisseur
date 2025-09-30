@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { BanEntity } from "@moderation/entity/ban.entity";
 import { WarnEntity } from "@moderation/entity/warn.entity";
-import { PersonEntity } from "@character/entity/person.entity";
+import { PersonEntity } from "@roleplay/entity/person.entity";
 import { HydratedDocument, Types } from "mongoose";
 
 export type UserDocument = HydratedDocument<UserEntity>;

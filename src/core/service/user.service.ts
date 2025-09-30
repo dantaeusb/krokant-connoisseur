@@ -3,6 +3,7 @@ import { UserDocument, UserEntity } from "../entity/user.entity";
 import { Model } from "mongoose";
 import { InjectModel } from "@nestjs/mongoose";
 import { User } from "@telegraf/types/manage";
+import { MessageDocument } from "@core/entity/message.entity";
 
 @Injectable()
 export class UserService {
@@ -13,7 +14,24 @@ export class UserService {
     private userEntityModel: Model<UserEntity>
   ) {}
 
-  public getSafeUniqueIdentifier(user?: UserEntity): string {
+  public async getParticipants(
+    chatId: number,
+    messages: Array<MessageDocument>
+  ): Promise<Array<UserDocument>> {
+    const participantIds = messages.reduce((ids, currentMessage) => {
+      if (!ids.includes(currentMessage.userId)) {
+        ids.push(currentMessage.userId);
+      }
+
+      return ids;
+    }, [] as Array<number>);
+
+    return await this.getUsers(chatId, participantIds);
+  }
+
+  public getSafeUniqueIdentifier(
+    user?: Pick<UserEntity, "userId" | "username">
+  ): string {
     if (!user) {
       return "Unknown";
     }
@@ -25,7 +43,9 @@ export class UserService {
     return `ID:${user.userId}`;
   }
 
-  public getSafeUserName(user?: UserEntity): string {
+  public getSafeUserName(
+    user?: Pick<UserEntity, "userId" | "name" | "username">
+  ): string {
     if (!user) {
       return "Unknown";
     }
@@ -74,7 +94,7 @@ export class UserService {
   public async getUsers(
     chatId: number,
     userIds: number[]
-  ): Promise<UserDocument[]> {
+  ): Promise<Array<UserDocument>> {
     return this.userEntityModel
       .find({
         chatId: chatId,

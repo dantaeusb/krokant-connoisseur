@@ -19,6 +19,7 @@ import { MessageService } from "@core/service/message.service";
 import { TriggerService } from "../service/trigger.service";
 import { CharacterService } from "../service/character.service";
 import { PersonService } from "../service/person.service";
+import { ConversationService } from "../service/conversation.service";
 
 /**
  * Handles character talking and responses.
@@ -28,7 +29,7 @@ import { PersonService } from "../service/person.service";
  */
 @Update()
 export class CharacterController {
-  private readonly logger = new Logger("Character/TalkingController");
+  private readonly logger = new Logger("Roleplay/TalkingController");
 
   constructor(
     @InjectBot(ClankerBotName)
@@ -39,6 +40,7 @@ export class CharacterController {
     private readonly messageService: MessageService,
     private readonly userService: UserService,
     private readonly personService: PersonService,
+    private readonly conversationService: ConversationService,
     private readonly formatterService: FormatterService
   ) {
     Promise.all([
@@ -381,5 +383,17 @@ export class CharacterController {
     users.forEach((user) => {
       this.personService.getPerson(context.chat.id, user.userId, true);
     });
+  }
+
+  @Command("conversation")
+  @UseGuards(AdminGuard)
+  async conversationCommand(
+    @Ctx() context: Context<TelegramUpdate.MessageUpdate>
+  ): Promise<void> {
+    this.logger.debug("Handling /conversation command");
+
+    const result = await this.conversationService.processOldestUnprocessedConversation(
+      context.chat.id
+    );
   }
 }

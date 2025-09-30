@@ -7,10 +7,7 @@ import { InjectModel } from "@nestjs/mongoose";
 import { InjectBot } from "nestjs-telegraf";
 import { Model, pluralize } from "mongoose";
 import { ClankerBotName } from "@/app.constants";
-import {
-  HydratedMessageDocument,
-  MessageEntity,
-} from "@core/entity/message.entity";
+import { MessageDocument, MessageEntity } from "@core/entity/message.entity";
 import { ConfigService } from "./config.service";
 import { UserService } from "./user.service";
 import { FormatterService } from "./formatter.service";
@@ -58,6 +55,7 @@ export class MessageService {
 
     const message = await this.bot.telegram.sendMessage(chatId, text, {
       ...extra,
+      parse_mode: extra?.parse_mode ?? "Markdown",
     });
 
     this.recordOwnMessage(
@@ -145,7 +143,7 @@ export class MessageService {
 
   public async recordMessage(
     context: Context<Update.MessageUpdate>
-  ): Promise<HydratedMessageDocument | void> {
+  ): Promise<MessageDocument | void> {
     if (!context.message || !context.text) {
       return;
     }
@@ -156,6 +154,7 @@ export class MessageService {
       userId: context.message.from.id,
       text: context.text,
       date: new Date(context.message.date * 1000),
+      conversationIds: null,
     };
 
     if (
@@ -188,7 +187,7 @@ export class MessageService {
    */
   public async recordHiddenMessage(
     context: Context<Update.MessageUpdate>
-  ): Promise<HydratedMessageDocument | void> {
+  ): Promise<MessageDocument | void> {
     if (!context.message) {
       return;
     }
@@ -199,6 +198,7 @@ export class MessageService {
       userId: context.message.from.id,
       text: MessageService.HIDDEN_MESSAGE_TEXT,
       date: new Date(context.message.date * 1000),
+      conversationIds: null,
     };
 
     if (
@@ -228,13 +228,14 @@ export class MessageService {
     text: string,
     replyToMessageId: number | null,
     date: number
-  ): Promise<HydratedMessageDocument | void> {
+  ): Promise<MessageDocument | void> {
     const message: MessageEntity = {
       chatId: chatId,
       messageId: messageId,
       userId: this.configService.botId,
       text: text,
       date: new Date(date * 1000),
+      conversationIds: null,
     };
 
     if (replyToMessageId) {
@@ -249,7 +250,7 @@ export class MessageService {
   public async getLatestMessages(
     chatId: number,
     limit: number
-  ): Promise<MessageEntity[]> {
+  ): Promise<Array<MessageDocument>> {
     return this.messageEntityModel
       .find({ chatId: chatId })
       .sort({ date: -1 })
@@ -257,10 +258,40 @@ export class MessageService {
       .exec();
   }
 
+  public async getOldestUnprocessedMessages(
+    chatId: number,
+    limit: number
+  ): Promise<Array<MessageDocument>> {
+    return this.messageEntityModel
+      .find({ chatId: chatId, conversationId: null })
+      .sort({ date: 1 })
+      .limit(limit)
+      .exec();
+  }
+
+  public async addConversationIdToMessages(
+    chatId: number,
+    messageIds: Array<number>,
+    conversationId: number
+  ): Promise<number> {
+    const result = await this.messageEntityModel
+      .updateMany(
+        { chatId: chatId, messageId: { $in: messageIds } },
+        { $push: { conversationIds: conversationId } }
+      )
+      .exec();
+
+    this.logger.log(
+      `Updated ${result.modifiedCount} messages in chat ${chatId} with conversation ID ${conversationId}`
+    );
+
+    return result.modifiedCount;
+  }
+
   public async getMessageChain(
     chatId: number,
     messageId: number
-  ): Promise<MessageEntity[]> {
+  ): Promise<Array<MessageDocument>> {
     const pipeline = [
       {
         $match: {

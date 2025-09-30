@@ -1,12 +1,13 @@
 import { Injectable, Logger } from "@nestjs/common";
 import {
   ContentListUnion,
+  GenerateContentResponse,
   GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
   SafetySetting,
+  Schema,
 } from "@google/genai";
-import { ConfigService } from "@core/service/config.service";
 import * as process from "node:process";
 
 @Injectable()
@@ -44,15 +45,15 @@ export class GeminiService {
     },
   ];
 
-  constructor(private readonly configService: ConfigService) {
+  constructor() {
     this.googleGenAI = new GoogleGenAI({
       vertexai: true,
-      //location: "europe-west9",
-      apiKey: process.env.GOOGLE_API_KEY,
-      /*googleAuthOptions: {
+      location: "europe-west9",
+      project: process.env.GOOGLE_PROJECT_ID,
+      googleAuthOptions: {
         keyFilename: "./gcp-key.json",
         projectId: process.env.GOOGLE_PROJECT_ID,
-      },*/
+      },
     });
   }
 
@@ -72,7 +73,7 @@ export class GeminiService {
       },
     });
 
-    this.logger.log(result.candidates);
+    this.resultSanityCheck(result);
 
     return result.text ?? null;
   }
@@ -93,7 +94,7 @@ export class GeminiService {
       },
     });
 
-    this.logger.log(result.candidates);
+    this.resultSanityCheck(result);
 
     return result.text ?? null;
   }
@@ -114,7 +115,7 @@ export class GeminiService {
       },
     });
 
-    this.logger.log(result.candidates);
+    this.resultSanityCheck(result);
 
     return (
       result.candidates[0].content.parts
@@ -131,33 +132,27 @@ export class GeminiService {
    * @param systemPrompt
    */
   public async summarizeAndRate(
-    prompt: string,
+    contents: ContentListUnion,
+    responseSchema: Schema,
     systemPrompt?: string
-  ): Promise<string | null> {
+  ) {
     const result = await this.googleGenAI.models.generateContent({
       model: "gemini-2.5-pro",
-      contents: [
-        {
-          role: "system",
-          parts: [{ text: systemPrompt ?? "You are a helpful assistant." }],
-        },
-        { role: "user", parts: [{ text: prompt }] },
-      ],
+      contents,
       config: {
         candidateCount: 1,
         safetySettings: this.safetySettings,
-        temperature: 0.0,
+        systemInstruction: systemPrompt,
+        temperature: 0.5,
         topP: 1.0,
         responseMimeType: "application/json",
-        responseSchema: {
-          type: "object",
-        }
+        responseSchema,
       },
     });
 
-    this.logger.log(result.candidates);
+    this.resultSanityCheck(result);
 
-    return (
+    return JSON.parse(
       result.candidates[0].content.parts
         .map((part) => part.text || "")
         .join("\n") ?? null
@@ -185,16 +180,35 @@ export class GeminiService {
         responseMimeType: "application/json",
         responseSchema: {
           type: "object",
-        }
+        },
       },
     });
 
-    this.logger.log(result.candidates);
+    this.resultSanityCheck(result);
 
-    return (
+    return JSON.parse(
       result.candidates[0].content.parts
         .map((part) => part.text || "")
         .join("\n") ?? null
     );
+  }
+
+  public resultSanityCheck(result: GenerateContentResponse) {
+    if (result.usageMetadata.promptTokenCount > 400000) {
+      this.logger.warn(
+        `High token usage: ${result.usageMetadata.promptTokenCount}`
+      );
+    }
+
+    this.logger.debug(result);
+
+    if (result.candidates.length > 0) {
+      const answer =
+        result.candidates[0].content.parts
+          .map((part) => part.text || "")
+          .join("\n") ?? null;
+
+      this.logger.log(answer);
+    }
   }
 }

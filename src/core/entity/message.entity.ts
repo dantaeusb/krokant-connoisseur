@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { HydratedDocument } from "mongoose";
+import { HydratedDocument, Types } from "mongoose";
 
-export type HydratedMessageDocument = HydratedDocument<MessageEntity>
+export type MessageDocument = HydratedDocument<MessageEntity>
 
 @Schema({ timestamps: true })
 export class MessageEntity {
@@ -28,11 +28,8 @@ export class MessageEntity {
   @Prop()
   forwardedFromUserId?: number;
 
-  /**
-   * UUID of the conversation this message is part of,
-   */
-  /*@Prop()
-  conversationUuid?: string;*/
+  @Prop({ default: null })
+  conversationIds: Array<number> | null;
 
   // No need for prop its managed by timestamps: true
   updatedAt?: Date;

@@ -18,7 +18,7 @@ import { Context, Telegraf } from "telegraf";
 import { ClankerBotName } from "@/app.constants";
 import { AdminGuard } from "@core/guard/admin.guard";
 import { ProfanityCheckService } from "../service/profanity-check.service";
-import { CharacterService } from "@character/service/character.service";
+import { CharacterService } from "@roleplay/service/character.service";
 import { MessageService } from "@core/service/message.service";
 import { ConfigService } from "@core/service/config.service";
 import { FormatterService } from "@core/service/formatter.service";
@@ -98,7 +98,7 @@ export class ModerationController {
 
   @Command("warn")
   @UseGuards(AdminGuard)
-  async warn(
+  async warnCommand(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
@@ -148,7 +148,7 @@ export class ModerationController {
 
   @Command("clear")
   @UseGuards(AdminGuard)
-  async clear(
+  async clearCommand(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
@@ -180,7 +180,7 @@ export class ModerationController {
 
   @Command("ban")
   @UseGuards(AdminGuard)
-  async ban(
+  async banCommand(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
@@ -223,7 +223,7 @@ export class ModerationController {
 
   @Command("unban")
   @UseGuards(AdminGuard)
-  async unban(
+  async unbanCommand(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
@@ -260,7 +260,7 @@ export class ModerationController {
 
   @Command("permaban")
   @UseGuards(AdminGuard)
-  async permaban(
+  async permabanCommand(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
@@ -279,19 +279,28 @@ export class ModerationController {
     await this.moderationService.permaBanUser(context.chat.id, targetUserId);
   }
 
+  /**
+   * @todo: [HIGH] Something is wrong with edited_message update type, there's no message property in context
+   * @param context
+   * @param message
+   * @param next
+   */
   @On(["message", "edited_message"])
   async messageLanguageCheck(
     @Ctx()
     context:
       | Context<TelegramUpdate.MessageUpdate>
       | Context<TelegramUpdate.EditedMessageUpdate>,
-    @Message()
-    message:
-      | TelegramUpdate.MessageUpdate["message"]
-      | TelegramUpdate.EditedMessageUpdate["edited_message"],
     @Next() next: () => Promise<void>
   ): Promise<void> {
     this.logger.debug("Handling message for language check");
+
+    const message:
+      | TelegramUpdate.MessageUpdate["message"]
+      | TelegramUpdate.EditedMessageUpdate["edited_message"] =
+      "message" in context.update
+        ? context.update.message
+        : context.update.edited_message;
 
     if (!context.text || context.from.is_bot) {
       return next();
@@ -382,13 +391,16 @@ export class ModerationController {
     context:
       | Context<TelegramUpdate.MessageUpdate>
       | Context<TelegramUpdate.EditedMessageUpdate>,
-    @Message()
-    message:
-      | TelegramUpdate.MessageUpdate["message"]
-      | TelegramUpdate.EditedMessageUpdate["edited_message"],
     @Next() next: () => Promise<void>
   ): Promise<void> {
     this.logger.debug("Handling message for profanity and links check");
+
+    const message:
+      | TelegramUpdate.MessageUpdate["message"]
+      | TelegramUpdate.EditedMessageUpdate["edited_message"] =
+      "message" in context.update
+        ? context.update.message
+        : context.update.edited_message;
 
     if (!context.text) {
       return next();
@@ -438,7 +450,7 @@ export class ModerationController {
   }
 
   @Command("warns")
-  async warns(
+  async warnsCommand(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
@@ -457,7 +469,7 @@ export class ModerationController {
   }
 
   @Command("bans")
-  async bans(
+  async bansCommand(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
@@ -482,7 +494,7 @@ export class ModerationController {
   }
 
   @On("message_reaction")
-  async handleMessageReaction(
+  async messageReactionHandle(
     @Ctx() context: Context<TelegramUpdate.MessageReactionUpdate>
   ): Promise<void> {
     this.logger.debug("Handling message reaction");
@@ -519,7 +531,6 @@ export class ModerationController {
     }
 
     return this.messageService.sendMessage(context.chat.id, answer, {
-      parse_mode: "Markdown",
       reply_parameters: {
         chat_id: context.chat.id,
         message_id: message.message_id,

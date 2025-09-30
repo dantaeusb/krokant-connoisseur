@@ -3,21 +3,29 @@ import { ConfigService } from "@core/service/config.service";
 import { UserEntity } from "@core/entity/user.entity";
 import { MessageService } from "@core/service/message.service";
 import { Content } from "@google/genai";
-import { MessageEntity } from "@core/entity/message.entity";
+import { MessageDocument } from "@core/entity/message.entity";
 import { UserService } from "@core/service/user.service";
 import { CommandsService } from "@core/service/commands.service";
-import { GeminiService } from "./gemini.service";
+import { GeminiService } from "@genai/service/gemini.service";
 import { PersonService } from "./person.service";
 
-type MessageEntityWithChain = MessageEntity & {
+type MessageDocumentWithChain = MessageDocument & {
   isInChain?: boolean;
 };
 
 @Injectable()
 export class CharacterService {
-  private static PRO_TRIGGER_CHANCE = 0.3;
+  private static PRO_TRIGGER_CHANCE = 0.2;
+  private static PRO_TRIGGER_WORDS: Array<string> = [
+    "why",
+    "tell",
+    "who",
+    "how",
+    "what",
+    "generate",
+  ];
 
-  private logger: Logger = new Logger("Character/CharacterService");
+  private logger: Logger = new Logger("Roleplay/CharacterService");
 
   constructor(
     private readonly configService: ConfigService,
@@ -41,7 +49,19 @@ export class CharacterService {
           {
             text:
               `Some of your responses might be sent by another models or automations ` +
-              `to avoid wasting resources. Respond in the same style as you normally would.\n`,
+              `to avoid wasting resources. Respond in the same style as you normally would.\n` +
+              `\n`,
+          },
+        ],
+      },
+      {
+        role: "user",
+        parts: [
+          {
+            text:
+              `Real world information might be useful for your response:\n` +
+              `Current ISO time is ${new Date().toISOString()}\n` +
+              `\n`,
           },
         ],
       },
@@ -65,6 +85,15 @@ export class CharacterService {
 
     const config = await this.configService.getConfig(chatId);
 
+    promptList.unshift({
+      role: "user",
+      parts: [
+        {
+          text: config.characterPrompt,
+        },
+      ],
+    });
+
     const commands = this.commandsService.getCommands("all_group_chats");
     let commandInfoPrompt = "Users can utilize following bot commands:\n";
     commands.forEach((cmd) => {
@@ -72,6 +101,7 @@ export class CharacterService {
         cmd.detailedDescription ?? cmd.description
       }\n`;
     });
+
     promptList.unshift({
       role: "user",
       parts: [
@@ -81,14 +111,12 @@ export class CharacterService {
       ],
     });
 
-    this.logger.debug(config.characterExtraPrompt);
-
-    if (config.characterExtraPrompt) {
+    if (config.chatInformationPrompt) {
       promptList.unshift({
         role: "user",
         parts: [
           {
-            text: config.characterExtraPrompt,
+            text: config.chatInformationPrompt,
           },
         ],
       });
@@ -99,15 +127,10 @@ export class CharacterService {
       messageId
     );
 
-    const participantIds = conversationContext.reduce((ids, currentMessage) => {
-      if (!ids.includes(currentMessage.userId)) {
-        ids.push(currentMessage.userId);
-      }
-
-      return ids;
-    }, [] as Array<number>);
-
-    const users = await this.userService.getUsers(chatId, participantIds);
+    const users = await this.userService.getParticipants(
+      chatId,
+      conversationContext
+    );
 
     const usersWithPersons = await this.personService.joinPersonToUsers(users);
 
@@ -191,15 +214,12 @@ export class CharacterService {
 
     this.logger.debug(promptList);
 
-    const chatConfig = await this.configService.getConfig(chatId);
-
-    let result =
-      Math.random() < CharacterService.PRO_TRIGGER_CHANCE
-        ? await this.geminiService.good(promptList, chatConfig.characterPrompt)
-        : await this.geminiService.regular(
-            promptList,
-            chatConfig.characterPrompt
-          );
+    let result = this.needGoodModel(text)
+      ? await this.geminiService.good(promptList, config.characterPrompt)
+      : await this.geminiService.regular(
+          promptList,
+        config.characterPrompt
+        );
 
     if (!result) {
       return this.fallback();
@@ -238,10 +258,10 @@ export class CharacterService {
   private async collectConversationContext(
     chatId: number,
     messageId: number
-  ): Promise<Array<MessageEntityWithChain>> {
+  ): Promise<Array<MessageDocumentWithChain>> {
     const [pastMessages, chain]: [
-      Array<MessageEntity>,
-      Array<MessageEntityWithChain>
+      Array<MessageDocument>,
+      Array<MessageDocumentWithChain>
     ] = await Promise.all([
       this.messageService.getLatestMessages(chatId, 200),
       this.messageService.getMessageChain(chatId, messageId),
@@ -251,7 +271,7 @@ export class CharacterService {
       message.isInChain = true;
     });
 
-    const messageMap = new Map<number, MessageEntityWithChain>();
+    const messageMap = new Map<number, MessageDocumentWithChain>();
 
     for (const message of chain) {
       if (!messageMap.has(message.messageId)) {
@@ -272,8 +292,29 @@ export class CharacterService {
     return combinedMessages;
   }
 
+  /**
+   * Trying to understand if we should trigger more expensive model
+   * Useful for questions and such
+   * @param text
+   * @private
+   */
+  private needGoodModel(text: string): boolean {
+    if (
+      text
+        .toLowerCase()
+        .split(" ")
+        .some((word) => {
+          return CharacterService.PRO_TRIGGER_WORDS.includes(word);
+        })
+    ) {
+      return true;
+    }
+
+    return Math.random() < CharacterService.PRO_TRIGGER_CHANCE;
+  }
+
   private chainToPrompt(
-    chain: Array<MessageEntityWithChain>,
+    chain: Array<MessageDocumentWithChain>,
     participants: Array<UserEntity>
   ): Array<Content> {
     const botId = this.configService.botId;

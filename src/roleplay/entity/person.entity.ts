@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import {
   PersonThoughtEntity,
   PersonThoughtSchema,
-} from "@character/entity/person/thought.entity";
+} from "@roleplay/entity/person/thought.entity";
 
 /**
  * Person is related to User, but contains information about the person

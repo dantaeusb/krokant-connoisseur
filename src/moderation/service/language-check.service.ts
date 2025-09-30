@@ -7,9 +7,6 @@ import { ClankerBotName } from "@/app.constants";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { LanguageWarnEntity } from "@moderation/entity/language-warn.entity";
-// @todo: https://github.com/mathiasbynens/emoji-regex/issues/117
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const getEmojiRegex = require("emoji-regex");
 
 @Injectable()
 export class LanguageCheckService {
@@ -36,7 +33,9 @@ export class LanguageCheckService {
 
   private static LANGUAGE_SOFT_WARNS_TO_WARN = 5;
 
-  private emojiRegex: RegExp = getEmojiRegex() as RegExp;
+  // It's not very good, it removes chracters next to emojis too, but it's the best I was able to find so far.
+  private emojiRegex =
+    /\p{RI}\p{RI}|\p{Emoji}(\p{EMod}|\uFE0F\u20E3?|[\uE0020-\uE007F]+)*|(\u0023|\u002A|[\u0030-\u0039])\uFE0F\u20E3/gu;
 
   private languagePatterns: Record<string, RegExp> = {};
 
@@ -132,6 +131,11 @@ export class LanguageCheckService {
 
         return LanguageWarnResult.BANNED;
       } else if (result === WarnResult.WARNED) {
+        await this.languageWarnEntityModel.updateOne(
+          { chatId: chatId, userId: userId },
+          { count: 0 }
+        );
+
         return LanguageWarnResult.WARNED;
       } else {
         return LanguageWarnResult.NONE;

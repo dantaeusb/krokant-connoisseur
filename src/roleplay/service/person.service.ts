@@ -11,7 +11,7 @@ export type PersonifiedUser = UserEntity & {
 
 @Injectable()
 export class PersonService {
-  private readonly logger = new Logger("Character/PersonService");
+  private readonly logger = new Logger("Roleplay/PersonService");
 
   constructor(
     @InjectModel(PersonEntity.COLLECTION_NAME)
@@ -84,6 +84,25 @@ export class PersonService {
     });
 
     return await newPerson.save();
+  }
+
+  public async updateFacts(
+    chatId: number,
+    userId: number,
+    facts: Array<string>
+  ): Promise<PersonEntity | null> {
+    return await this.personEntityModel
+      .findOneAndUpdate(
+        {
+          chatId,
+          userId,
+        },
+        { characteristics: facts },
+        {
+          new: true,
+        }
+      )
+      .exec();
   }
 
   /**

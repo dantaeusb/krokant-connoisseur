@@ -10,7 +10,7 @@ import { BanSchema } from "./entity/ban.entity";
 import { WarnSchema } from "./entity/warn.entity";
 import { LanguageWarnSchema } from "./entity/language-warn.entity";
 import { CoreModule } from "@core/core.module";
-import { CharacterModule } from "@character/character.module";
+import { RoleplayModule } from "@roleplay/roleplay.module";
 
 @Module({
   imports: [
@@ -20,7 +20,7 @@ import { CharacterModule } from "@character/character.module";
       { name: "language_warn", schema: LanguageWarnSchema },
     ]),
     CoreModule,
-    CharacterModule,
+    RoleplayModule,
   ],
   providers: [
     ModerationController,

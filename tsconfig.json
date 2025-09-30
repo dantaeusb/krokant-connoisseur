@@ -3,6 +3,7 @@
     "module": "commonjs",
     "declaration": true,
     "removeComments": true,
+    "resolveJsonModule": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
@@ -27,11 +28,17 @@
       "@moderation/*": [
         "moderation/*"
       ],
-      "@character": [
-        "character"
+      "@genai": [
+        "genai"
       ],
-      "@character/*": [
-        "character/*"
+      "@genai/*": [
+        "genai/*"
+      ],
+      "@roleplay": [
+        "roleplay"
+      ],
+      "@roleplay/*": [
+        "roleplay/*"
       ]
     }
   },

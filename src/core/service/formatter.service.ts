@@ -4,9 +4,12 @@ import { REACTION_CONSTANTS } from "@core/constants/reaction.constants";
 @Injectable()
 export class FormatterService {
   private static TELEGRAM_UNESCAPED_HANDLE_REGEX =
-    /`[^`]*`|@([a-zA-Z0-9_]{5,32})/g;
+    /`[^`]*`|@([a-zA-Z0-9_]{5,32})/gm;
 
   private readonly logger = new Logger("Core/FormatterService");
+  private readonly formatter = new Intl.RelativeTimeFormat("en", {
+    numeric: "auto",
+  });
 
   public escapeMarkdown(text: string): string {
     return text.replace(/([#+=|{}])/gm, "\\$1");
@@ -23,6 +26,33 @@ export class FormatterService {
         return match;
       }
     );
+  }
+
+  public formatRelativeTime(date: Date): string {
+    const now = new Date();
+    const diffInSeconds = Math.floor((date.getTime() - now.getTime()) / 1000);
+
+    const intervals: { [key: string]: number } = {
+      year: 31536000,
+      month: 2592000,
+      week: 604800,
+      day: 86400,
+      hour: 3600,
+      minute: 60,
+    };
+
+    for (const unit in intervals) {
+      const interval = intervals[unit];
+      if (Math.abs(diffInSeconds) >= interval) {
+        const value = Math.round(diffInSeconds / interval);
+        return this.formatter.format(
+          value,
+          unit as Intl.RelativeTimeFormatUnit
+        );
+      }
+    }
+
+    return "a moment ago";
   }
 
   public getReactionFromNumber(num: number): bigint {

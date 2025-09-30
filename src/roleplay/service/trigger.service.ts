@@ -11,7 +11,7 @@ export class TriggerService {
     { phrase: "clanker", chance: 0.8 },
     { phrase: "clankkka", chance: 0.8 },
     { phrase: "clanker", chance: 0.8 },
-    { phrase: "KrokantConnoisseurChatBot", chance: 1 },
+    { phrase: "@KrokantConnoisseurChatBot", chance: 1 },
   ];
 
   constructor(private readonly personService: PersonService) {}
