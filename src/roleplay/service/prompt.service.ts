@@ -55,6 +55,15 @@ export class PromptService {
         role: "user",
         parts: [
           {
+            // @todo: [HIGH] Add words, add languages
+            text:
+              `Users are warned for use of specific words in the chat and for consistent use ` +
+              `of language other than English (more than 5 in 15 minutes), or manually by admin.\n` +
+              `If user was not warned for a day, a warn will cooldown.\n` +
+              `Bans cooldown in a week if not active and not permanent.\n` +
+              `Users can still be manually warned, banned or permanently banned by admins.\n`,
+          },
+          {
             text:
               `Some of your responses might be sent by another models or automations ` +
               `to avoid wasting resources. Respond in the same style as you normally would.\n` +
@@ -169,17 +178,21 @@ export class PromptService {
 
         if (warn && warn.count > 0) {
           personDescription += `This user has been warned ${warn.count} times out of ${ModerationService.WARN_LIMIT}\n`;
+        } else {
+          personDescription += `This user has no warnings\n`;
         }
 
         const ban = bans.find((b) => b.userId === user.userId);
 
         if (ban) {
-          if (ban.severity > 0) {
+          if (ban.severity > 0 && ban.severity <= 8) {
             personDescription += `This user was banned ${
               ban.severity - 1
             } times, last one for reason: ${ban.reason}\n`;
           } else if (ban.severity > 8) {
             personDescription += `This user is permanently banned for reason: ${ban.reason}\n`;
+          } else {
+            personDescription += `This user has no bans.\n`;
           }
         }
 
@@ -233,6 +246,29 @@ export class PromptService {
               `Messages without > may be irrelevant but can be used for context\n` +
               `Do not add [] or > to your messages.\n` +
               `\n`,
+          },
+        ],
+      },
+    ];
+  }
+
+  public getPromptForRephrase(
+    text: string,
+    toUser?: UserDocument
+  ): Array<Content> {
+    return [
+      {
+        role: "user",
+        parts: [
+          {
+            text:
+              `You are rephrasing message addressed to ${
+                toUser?.name ?? "someone"
+              }\n` +
+              `Rephrase the following message, keeping important information, such as numbers.'n` +
+              `Do not mention your task to rephrase:\n` +
+              `\n` +
+              text,
           },
         ],
       },

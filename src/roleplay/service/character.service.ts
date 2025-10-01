@@ -58,8 +58,8 @@ export class CharacterService {
     const [
       characterPrompt,
       commandsPrompt,
-      participantsPropmt,
-      pastConversationsPropmt,
+      participantsPrompt,
+      pastConversationsPrompt,
       replyPrompt,
     ] = await Promise.all([
       this.promptService.getPromptFromChatCharacter(chatId),
@@ -72,8 +72,8 @@ export class CharacterService {
     const promptList: Array<Content> = [
       ...characterPrompt,
       ...commandsPrompt,
-      ...participantsPropmt,
-      ...pastConversationsPropmt,
+      ...participantsPrompt,
+      ...pastConversationsPrompt,
       ...replyPrompt,
     ];
 
@@ -129,19 +129,32 @@ export class CharacterService {
   public async rephrase(
     chatId: number,
     text: string,
-    toUser?: UserEntity
+    toUser?: UserDocument
   ): Promise<string> {
-    let prompt = `Rephrase the following message, keeping important information. Do not mention your task to rephrase: ${text}`;
-
-    if (toUser) {
-      prompt = `You are replying to ${toUser.name}\n` + prompt;
-    }
-
     const chatConfig = await this.configService.getConfig(chatId);
 
+    const [
+      characterPrompt,
+      commandsPrompt,
+      participantsPrompt,
+      rephrasePrompt,
+    ] = await Promise.all([
+      this.promptService.getPromptFromChatCharacter(chatId),
+      this.promptService.getPromptForCommands(),
+      toUser ? this.promptService.getPromptForUsersParticipants([toUser]) : [],
+      this.promptService.getPromptForRephrase(text, toUser),
+    ]);
+
+    const promptList: Array<Content> = [
+      ...characterPrompt,
+      ...commandsPrompt,
+      ...participantsPrompt,
+      ...rephrasePrompt,
+    ];
+
     const result = await this.geminiService.quick(
-      prompt,
-      chatConfig.characterPrompt
+      promptList,
+      chatConfig.characterSystemPrompt
     );
 
     if (!result) {

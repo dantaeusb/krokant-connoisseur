@@ -532,7 +532,17 @@ export class ModerationController {
     const rephrase = config ? !!config.yapping : false;
 
     if (rephrase) {
-      answer = await this.characterService.rephrase(context.chat.id, answer);
+      const toUser = await this.userService.getUser(
+        context.chat.id,
+        message.from.id,
+        context.from
+      );
+
+      answer = await this.characterService.rephrase(
+        context.chat.id,
+        answer,
+        toUser
+      );
     }
 
     return this.messageService.sendMessage(context.chat.id, answer, {
