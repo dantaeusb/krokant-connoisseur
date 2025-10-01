@@ -14,7 +14,13 @@ export class ConversationEntity {
   conversationId: number;
 
   @Prop({ required: true })
+  title: string;
+
+  @Prop({ required: true })
   summary: string;
+
+  @Prop({ required: true })
+  weight: number;
 
   @Prop({ required: true })
   messageStartId: number;
@@ -26,7 +32,7 @@ export class ConversationEntity {
   participantIds: Array<number>;
 
   @Prop({ required: true })
-  time: Date;
+  date: Date;
 
   // No need for prop its managed by timestamps: true
   updatedAt?: Date;

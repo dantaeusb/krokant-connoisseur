@@ -200,7 +200,7 @@ export class GeminiService {
       );
     }
 
-    this.logger.debug(result);
+    //this.logger.debug(result);
 
     if (result.candidates.length > 0) {
       const answer =

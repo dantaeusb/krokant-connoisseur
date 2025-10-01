@@ -18,6 +18,18 @@ import { FormatterService } from "./formatter.service";
 @Injectable()
 export class MessageService {
   public static readonly HIDDEN_MESSAGE_TEXT = "[Hidden by user preference]";
+  /**
+   * 36 hours - time window to consider messages for conversation summarization.
+   * Messages before this period could be summarized into a single prompt.
+   */
+  public static readonly CONVERSATION_SUMMARIZATION_WINDOW_MS =
+    36 * 60 * 60 * 1000;
+
+  /**
+   * If there are less messages than this threshold in the summarization window,
+   * we won't summarize them yet.
+   */
+  public static readonly MESSAGE_SUMMARIZATION_THRESHOLD = 200;
 
   private readonly logger = new Logger("Core/MessageService");
 
@@ -262,11 +274,25 @@ export class MessageService {
     chatId: number,
     limit: number
   ): Promise<Array<MessageDocument>> {
-    return this.messageEntityModel
-      .find({ chatId: chatId, conversationId: null })
+    const messages = await this.messageEntityModel
+      .find({
+        chatId: chatId,
+        conversationIds: null,
+        date: {
+          $lt: new Date(
+            Date.now() - MessageService.CONVERSATION_SUMMARIZATION_WINDOW_MS
+          ),
+        },
+      })
       .sort({ date: 1 })
       .limit(limit)
       .exec();
+
+    if (messages.length < MessageService.MESSAGE_SUMMARIZATION_THRESHOLD) {
+      return [];
+    }
+
+    return messages;
   }
 
   public async addConversationIdToMessages(

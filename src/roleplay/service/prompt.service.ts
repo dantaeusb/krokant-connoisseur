@@ -1,10 +1,13 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { Content } from "@google/genai";
 import { ConfigService } from "@core/service/config.service";
 import { UserService } from "@core/service/user.service";
-import { UserDocument, UserEntity } from "@core/entity/user.entity";
+import { UserDocument } from "@core/entity/user.entity";
+import { CommandsService } from "@core/service/commands.service";
 import { MessageDocument } from "@core/entity/message.entity";
 import { FormatterService } from "@core/service/formatter.service";
-import { Content } from "@google/genai";
+import { ConversationDocument } from "../entity/conversation.entity";
+import { PersonService } from "./person.service";
 
 @Injectable()
 export class PromptService {
@@ -13,8 +16,203 @@ export class PromptService {
   constructor(
     private readonly configService: ConfigService,
     private readonly userService: UserService,
+    private readonly personService: PersonService,
+    private readonly commandsService: CommandsService,
     private readonly formatterService: FormatterService
   ) {}
+
+  public async getPromptFromChatCharacter(
+    chatId: number
+  ): Promise<Array<Content>> {
+    const config = await this.configService.getConfig(chatId);
+
+    const prompts: Array<Content> = [
+      {
+        role: "user",
+        parts: [
+          {
+            text: config.characterPrompt,
+          },
+        ],
+      },
+    ];
+
+    if (config.chatInformationPrompt) {
+      prompts.push({
+        role: "user",
+        parts: [
+          {
+            text: config.chatInformationPrompt,
+          },
+        ],
+      });
+    }
+
+    prompts.push(
+      {
+        role: "user",
+        parts: [
+          {
+            text:
+              `Some of your responses might be sent by another models or automations ` +
+              `to avoid wasting resources. Respond in the same style as you normally would.\n` +
+              `\n`,
+          },
+        ],
+      },
+      {
+        role: "user",
+        parts: [
+          {
+            text:
+              `Real world information might be useful for your response:\n` +
+              `Current ISO time is ${new Date().toISOString()}\n` +
+              `\n`,
+          },
+        ],
+      }
+    );
+
+    let totalLength = 0;
+
+    prompts.forEach((prompt) => {
+      const promptText = prompt.parts.map((part) => part.text || "").join("\n");
+      totalLength += promptText.length;
+    });
+
+    this.logger.debug(`Character prompt length: ${totalLength}`);
+
+    return prompts;
+  }
+
+  public getPromptForCommands(): Promise<Array<Content>> {
+    const commands = this.commandsService.getCommands("all_group_chats");
+    let commandInfoPrompt = "Users can use the following bot commands:\n";
+
+    commands.forEach((cmd) => {
+      commandInfoPrompt += `\`/${cmd.command}\` - ${
+        cmd.detailedDescription ?? cmd.description
+      }\n`;
+    });
+
+    this.logger.debug(`Commands prompt length: ${commandInfoPrompt.length}`);
+
+    return Promise.resolve([
+      {
+        role: "user",
+        parts: [
+          {
+            text: commandInfoPrompt,
+          },
+        ],
+      },
+    ]);
+  }
+
+  public async getPromptForUsersParticipants(
+    userParticipants: Array<UserDocument>
+  ): Promise<Array<Content>> {
+    let text =
+      `Use the context of the conversation and information about users ` +
+      `to inform your responses. Do not directly disclose any information ` +
+      `about users, instead use it to make your responses more relevant ` +
+      `and personalized. Never just list information you have.\n\n`;
+
+    const usersWithPersons = await this.personService.joinPersonToUsers(
+      userParticipants
+    );
+
+    usersWithPersons.forEach((user) => {
+      if (
+        user.person &&
+        (user.person.names.length > 0 ||
+          user.person.characteristics.length > 0 ||
+          user.person.thoughts.length > 0)
+      ) {
+        let personDescription = `Information about conversation participant [${this.userService.getSafeUniqueIdentifier(
+          user
+        )}] – use it but do not directly disclose it:\n`;
+        if (user.person.names.length > 0) {
+          personDescription += `Their other names or names are:${user.person.names.join(
+            ", "
+          )}.\n`;
+        }
+        if (user.person.characteristics.length > 0) {
+          personDescription += `Facts about that person:\n${user.person.characteristics
+            .map((fact) => `- ${fact}`)
+            .join("\n")}\n`;
+        }
+        if (user.person.thoughts.length > 0) {
+          personDescription += `Your thoughts about that person based on interactions:\n${user.person.thoughts
+            .map((thought) => `- Had ${thought.thought}`)
+            .join("\n")}.\n\n`;
+        }
+
+        text += personDescription;
+      }
+    });
+
+    this.logger.debug(`Users prompt length: ${text.length}`);
+
+    return [
+      {
+        role: "user",
+        parts: [
+          {
+            text: text,
+          },
+        ],
+      },
+    ];
+  }
+
+  public getPromptForReply(toUser?: UserDocument): Array<Content> {
+    return [
+      {
+        role: "user",
+        parts: [
+          {
+            text:
+              `You are replying to ${toUser?.name ?? "unknown user"}\n` +
+              `Their messages are starting with [${this.userService.getSafeUniqueIdentifier(
+                toUser
+              )}]\n` +
+              `Messages starting with > belong to the current conversation, pay more attention to them.\n` +
+              `Messages without > may be irrelevant but can be used for context\n` +
+              `Do not add [] or > to your messages.\n` +
+              `\n`,
+          },
+        ],
+      },
+    ];
+  }
+
+  public getPromptFromConversations(
+    conversations: Array<ConversationDocument>
+  ): Array<Content> {
+    let text =
+      `You are provided with a list of summaries of past conversations.\n` +
+      `Each summary has a relative date short description.\n`;
+
+    for (const conversation of conversations) {
+      text += `${this.formatterService.formatRelativeTime(
+        conversation.date
+      )}: ${conversation.summary}\n`;
+    }
+
+    this.logger.debug(`Conversations prompt length: ${text.length}`);
+
+    return [
+      {
+        role: "user",
+        parts: [
+          {
+            text: text,
+          },
+        ],
+      },
+    ];
+  }
 
   public getPromptFromMessages(
     messages: Array<MessageDocument>,
@@ -158,6 +356,17 @@ export class PromptService {
     return text;
   }
 
+  /**
+   * Helpers for message formatting in prompts.
+   */
+
+  /**
+   *
+   * @param message
+   * @param user
+   * @param responseToUser
+   * @param withMessageId
+   */
   public getMessageHeader(
     message: MessageDocument,
     user?: UserDocument,

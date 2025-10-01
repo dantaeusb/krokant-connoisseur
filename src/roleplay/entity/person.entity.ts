@@ -3,6 +3,9 @@ import {
   PersonThoughtEntity,
   PersonThoughtSchema,
 } from "@roleplay/entity/person/thought.entity";
+import { HydratedDocument } from "mongoose";
+
+export type PersonDocument = HydratedDocument<PersonEntity>;
 
 /**
  * Person is related to User, but contains information about the person

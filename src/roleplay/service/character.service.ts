@@ -1,13 +1,13 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@core/service/config.service";
-import { UserEntity } from "@core/entity/user.entity";
+import { UserDocument, UserEntity } from "@core/entity/user.entity";
 import { MessageService } from "@core/service/message.service";
 import { Content } from "@google/genai";
 import { MessageDocument } from "@core/entity/message.entity";
 import { UserService } from "@core/service/user.service";
-import { CommandsService } from "@core/service/commands.service";
 import { GeminiService } from "@genai/service/gemini.service";
-import { PersonService } from "./person.service";
+import { ConversationService } from "./conversation.service";
+import { PromptService } from "./prompt.service";
 
 type MessageDocumentWithChain = MessageDocument & {
   isInChain?: boolean;
@@ -32,162 +32,60 @@ export class CharacterService {
     private readonly geminiService: GeminiService,
     private readonly messageService: MessageService,
     private readonly userService: UserService,
-    private readonly personService: PersonService,
-    private readonly commandsService: CommandsService
+    private readonly conversationService: ConversationService,
+    private readonly promptService: PromptService
   ) {}
 
   public async respond(
     chatId: number,
     messageId: number,
     text: string,
-    toUser?: UserEntity
+    toUser?: UserDocument
   ): Promise<string> {
-    const promptList: Array<Content> = [
-      {
-        role: "user",
-        parts: [
-          {
-            text:
-              `Some of your responses might be sent by another models or automations ` +
-              `to avoid wasting resources. Respond in the same style as you normally would.\n` +
-              `\n`,
-          },
-        ],
-      },
-      {
-        role: "user",
-        parts: [
-          {
-            text:
-              `Real world information might be useful for your response:\n` +
-              `Current ISO time is ${new Date().toISOString()}\n` +
-              `\n`,
-          },
-        ],
-      },
-      {
-        role: "user",
-        parts: [
-          {
-            text:
-              `You are replying to ${toUser?.name ?? "unknown user"}\n` +
-              `Their messages are starting with [${this.userService.getSafeUniqueIdentifier(
-                toUser
-              )}]\n` +
-              `Messages starting with > belong to the current conversation, pay more attention to them.\n` +
-              `Messages without > may be irrelevant but can be used for context\n` +
-              `Do not add [] or > to your messages.\n` +
-              `\n`,
-          },
-        ],
-      },
-    ];
-
     const config = await this.configService.getConfig(chatId);
 
-    promptList.unshift({
-      role: "user",
-      parts: [
-        {
-          text: config.characterPrompt,
-        },
-      ],
-    });
+    const currentConversationContext =
+      await this.collectCurrentConversationContext(chatId, messageId);
 
-    const commands = this.commandsService.getCommands("all_group_chats");
-    let commandInfoPrompt = "Users can utilize following bot commands:\n";
-    commands.forEach((cmd) => {
-      commandInfoPrompt += `\`/${cmd.command}\` - ${
-        cmd.detailedDescription ?? cmd.description
-      }\n`;
-    });
-
-    promptList.unshift({
-      role: "user",
-      parts: [
-        {
-          text: commandInfoPrompt,
-        },
-      ],
-    });
-
-    if (config.chatInformationPrompt) {
-      promptList.unshift({
-        role: "user",
-        parts: [
-          {
-            text: config.chatInformationPrompt,
-          },
-        ],
-      });
-    }
-
-    const conversationContext = await this.collectConversationContext(
-      chatId,
-      messageId
-    );
+    const pastConversationsContext =
+      await this.conversationService.getConversations(chatId);
 
     const users = await this.userService.getParticipants(
       chatId,
-      conversationContext
+      currentConversationContext
     );
 
-    const usersWithPersons = await this.personService.joinPersonToUsers(users);
+    const [
+      characterPrompt,
+      commandsPrompt,
+      participantsPropmt,
+      pastConversationsPropmt,
+      replyPrompt,
+    ] = await Promise.all([
+      this.promptService.getPromptFromChatCharacter(chatId),
+      this.promptService.getPromptForCommands(),
+      this.promptService.getPromptForUsersParticipants(users),
+      this.promptService.getPromptFromConversations(pastConversationsContext),
+      this.promptService.getPromptForReply(toUser),
+    ]);
 
-    // @todo: [MID] may not be
+    const promptList: Array<Content> = [
+      ...characterPrompt,
+      ...commandsPrompt,
+      ...participantsPropmt,
+      ...pastConversationsPropmt,
+      ...replyPrompt,
+    ];
 
-    promptList.push({
-      role: "user",
-      parts: [
-        {
-          text:
-            `Use the context of the conversation and information about users ` +
-            `to inform your responses. Do not directly disclose any information ` +
-            `about users, instead use it to make your responses more relevant ` +
-            `and personalized. Never just list information you have.\n\n`,
-        },
-      ],
-    });
-
-    usersWithPersons.forEach((user) => {
-      if (
-        user.person &&
-        (user.person.names.length > 0 ||
-          user.person.characteristics.length > 0 ||
-          user.person.thoughts.length > 0)
-      ) {
-        let personDescription = `Information about conversation participant [${this.userService.getSafeUniqueIdentifier(
-          user
-        )}] – use it but do not directly disclose it:\n`;
-        if (user.person.names.length > 0) {
-          personDescription += `Their other names or names are: ${user.person.names.join(
-            ", "
-          )}.\n`;
-        }
-        if (user.person.characteristics.length > 0) {
-          personDescription += `Facts about that person: ${user.person.characteristics.join(
-            ", "
-          )}.\n`;
-        }
-        if (user.person.thoughts.length > 0) {
-          personDescription += `Your thoughts about that person based on interactions: ${user.person.thoughts.join(
-            ", "
-          )}.\n\n`;
-        }
-
-        promptList.unshift({
-          role: "user",
-          parts: [
-            {
-              text: personDescription,
-            },
-          ],
-        });
-      }
-    });
+    this.logger.debug(
+      "Prompt parts before context:",
+      promptList
+        .map((prompt) => prompt.parts.map((part) => part.text))
+        .join("\n")
+    );
 
     const promptThreadChain: Array<Content> = this.chainToPrompt(
-      conversationContext,
+      currentConversationContext,
       users
     );
 
@@ -212,13 +110,11 @@ export class CharacterService {
       parts: [{ text: `Reply to following message: ${text}` }],
     });
 
-    this.logger.debug(promptList);
-
     let result = this.needGoodModel(text)
-      ? await this.geminiService.good(promptList, config.characterPrompt)
+      ? await this.geminiService.good(promptList, config.characterSystemPrompt)
       : await this.geminiService.regular(
           promptList,
-        config.characterPrompt
+          config.characterSystemPrompt
         );
 
     if (!result) {
@@ -255,7 +151,7 @@ export class CharacterService {
     return result;
   }
 
-  private async collectConversationContext(
+  private async collectCurrentConversationContext(
     chatId: number,
     messageId: number
   ): Promise<Array<MessageDocumentWithChain>> {

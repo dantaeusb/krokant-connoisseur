@@ -16,14 +16,19 @@ import {
 } from "@roleplay/entity/conversation.entity";
 
 import { CounterService } from "@core/service/counter.service";
+import { Cron } from "@nestjs/schedule";
+import { PersonThoughtEntity } from "@roleplay/entity/person/thought.entity";
 
 type SummarizationResponse = {
   conversations: Array<{
+    title: string;
     summary: string;
+    weight: number;
     messageStart: string;
     messageEnd: string;
     participants: Array<{
       handle: string;
+      weight: number;
       attitude: {
         hostility: number;
         repetitiveness: number;
@@ -39,6 +44,7 @@ type SummarizationResponse = {
 @Injectable()
 export class ConversationService {
   private static MAX_CONVERSATION_GAP_MS = 1000 * 60 * 60 * 4; // 4 hours
+  private static MAX_RUNS_PER_HOUR = 10;
 
   private logger: Logger = new Logger("Roleplay/ConversationService");
 
@@ -53,6 +59,27 @@ export class ConversationService {
     private readonly personService: PersonService,
     private readonly promptService: PromptService
   ) {}
+
+  public async getConversation(
+    chatId: number,
+    conversationId: number
+  ): Promise<ConversationEntity | null> {
+    return await this.conversationEntityModel
+      .findOne({ chatId, conversationId })
+      .lean()
+      .exec();
+  }
+
+  public async getConversations(
+    chatId: number,
+    limit = 100
+  ): Promise<Array<ConversationDocument>> {
+    return await this.conversationEntityModel
+      .find({ chatId })
+      .sort({ time: -1 })
+      .limit(limit)
+      .exec();
+  }
 
   public async processOldestUnprocessedConversation(
     chatId: number,
@@ -78,6 +105,8 @@ export class ConversationService {
           {
             text:
               `You are analyzing a chat log from a cluster of messages.\n` +
+              `In that cluster, you need to identify separate conversations.\n` +
+              `Typically it's expected to have 1-3 conversations in the window.\n` +
               `Messages are starting with #Message ID: [User Handle] (Time)\n` +
               `If message says that it's hidden by user preferences, avoid ` +
               `extracting any information about it from context from other users.\n`,
@@ -105,7 +134,7 @@ export class ConversationService {
       true
     );
 
-    this.logger.debug(messagesPrompt);
+    //this.logger.debug(messagesPrompt);
 
     const response: SummarizationResponse =
       await this.geminiService.summarizeAndRate(
@@ -117,8 +146,28 @@ export class ConversationService {
     this.logger.log(response);
 
     for (const conversation of response.conversations) {
+      const messageStartId = parseInt(
+        conversation.messageStart.replace(/^#/g, ""),
+        10
+      );
+      const messageEndId = parseInt(
+        conversation.messageEnd.replace(/^#/g, ""),
+        10
+      );
+
+      if (
+        isNaN(messageStartId) ||
+        isNaN(messageEndId) ||
+        messageEndId < messageStartId
+      ) {
+        throw new Error(
+          `Invalid message IDs in conversation summary: ` +
+            `start=${conversation.messageStart}, end=${conversation.messageEnd}`
+        );
+      }
+
       this.logger.log(
-        `Conversation from ${conversation.messageStart} to ${conversation.messageEnd}: ` +
+        `Conversation from #${messageStartId} to #${messageEndId}: ` +
           conversation.summary
       );
 
@@ -140,16 +189,19 @@ export class ConversationService {
 
       const messagesInConversation = messages.filter((message) => {
         return (
-          message.messageId >= parseInt(conversation.messageEnd) &&
-          message.messageId <= parseInt(conversation.messageStart)
+          message.messageId >= messageStartId &&
+          message.messageId <= messageEndId
         );
       });
 
       let time = messagesInConversation[0]
-        ? messagesInConversation[0].createdAt
+        ? messagesInConversation[0].date
         : new Date();
       // Round to hour
-      time = new Date((time.getTime() % 60) * 60 * 1000);
+      time = new Date(Math.floor(time.getTime() / (60 * 1000)) * 60 * 1000);
+      this.logger.log(
+        `Conversation time after rounding: ${time.toISOString()}`
+      );
 
       const conversationId = await this.counterService.getNextSequence(
         `${ConversationEntity.COLLECTION_NAME}-${chatId}`
@@ -158,11 +210,13 @@ export class ConversationService {
       const newConversation = await this.conversationEntityModel.create({
         chatId,
         conversationId,
-        messageStartId: parseInt(conversation.messageStart) || 0,
-        messageEndId: parseInt(conversation.messageEnd) || 0,
+        title: conversation.title,
         summary: conversation.summary,
+        weight: this.clampScore(conversation.weight),
+        messageStartId: messageStartId,
+        messageEndId: messageEndId,
         participantIds: participantUserIds,
-        time,
+        date: time,
       });
 
       await this.messageService.addConversationIdToMessages(
@@ -170,19 +224,89 @@ export class ConversationService {
         messagesInConversation.map((message) => message.messageId),
         newConversation.conversationId
       );
+
+      await this.updateFactsAndThoughts(
+        chatId,
+        participantUsers,
+        conversation,
+        time
+      );
     }
   }
 
   private async updateFactsAndThoughts(
     chatId: number,
     participantUsers: Array<UserDocument>,
-    participants: Array<
-      SummarizationResponse["conversations"][0]["participants"]
-    >
+    conversation: SummarizationResponse["conversations"][0],
+    date: Date
   ): Promise<void> {
-    participants.map((participantInfo) => {
-      participantInfo;
-    });
+    const thoughtTitle = `Conversation about ${conversation.title}`;
+
+    for (let i = 0; i < participantUsers.length; i++) {
+      const user = participantUsers[i];
+      const participant = conversation.participants[i];
+
+      if (!participant) {
+        continue;
+      }
+
+      const person = await this.personService.getPerson(
+        chatId,
+        user.userId,
+        true
+      );
+
+      if (!person) {
+        continue;
+      }
+
+      let updated = false;
+
+      if (participant.facts && participant.facts.length > 0) {
+        for (const fact of participant.facts) {
+          person.characteristics.push(fact);
+          updated = true;
+        }
+      }
+
+      const newThought: PersonThoughtEntity = {
+        thought: thoughtTitle,
+        opinionModifier: 0,
+        weight: this.clampScore(
+          (conversation.weight / 10) * participant.weight
+        ),
+        factors: [
+          {
+            factor: "hostility",
+            value: this.clampScore(participant.attitude.hostility),
+          },
+          {
+            factor: "repetitiveness",
+            value: this.clampScore(participant.attitude.repetitiveness),
+          },
+          {
+            factor: "engagement",
+            value: this.clampScore(participant.attitude.engagement),
+          },
+          {
+            factor: "kindness",
+            value: this.clampScore(participant.attitude.kindness),
+          },
+          {
+            factor: "playfulness",
+            value: this.clampScore(participant.attitude.playfulness),
+          },
+        ],
+        date: date,
+      };
+
+      person.thoughts.push(newThought);
+      updated = true;
+
+      if (updated) {
+        await person.save();
+      }
+    }
   }
 
   /**
@@ -204,6 +328,10 @@ export class ConversationService {
       chatId,
       Math.round(characterCountLimit / 40)
     );
+
+    if (messages.length === 0) {
+      return [];
+    }
 
     const mappedMessages: Map<number, MessageDocument> = new Map();
     messages.forEach((message) =>
@@ -319,6 +447,53 @@ export class ConversationService {
     );
   }
 
+  @Cron("0 * * * *")
+  public async processUnprocessedConversations(): Promise<void> {
+    const chatIds = await this.configService.getAllChatIds();
+
+    for (const chatId of chatIds) {
+      let processedCount = 0;
+      do {
+        try {
+          const conversation = await this.processOldestUnprocessedConversation(
+            chatId
+          );
+
+          if (conversation) {
+            processedCount++;
+            this.logger.log(
+              `Processed conversation ${conversation.conversationId} ` +
+                `for chat ${chatId}`
+            );
+          } else {
+            break;
+          }
+        } catch (err) {
+          this.logger.error(
+            `Error processing conversations for chat ${chatId}: ${err.message}`,
+            err.stack
+          );
+        }
+      } while (processedCount < ConversationService.MAX_RUNS_PER_HOUR);
+
+      if (processedCount > 0) {
+        this.logger.log(
+          `Processed ${processedCount} conversations for chat ${chatId}`
+        );
+      }
+    }
+  }
+
+  private clampScore = (score: number): number => {
+    if (score < 1) {
+      return 1;
+    } else if (score > 10) {
+      return 10;
+    }
+
+    return Math.round(score);
+  };
+
   readonly summarizationSchema = {
     type: Type.OBJECT,
     properties: {
@@ -327,23 +502,40 @@ export class ConversationService {
         items: {
           type: Type.OBJECT,
           properties: {
+            title: {
+              type: Type.STRING,
+              description:
+                'Short phrase to title conversion as to fit in "Conversation about X" template. ' +
+                'Do not include "Conversation about"',
+              example: "Pets",
+            },
             summary: {
               type: Type.STRING,
               description:
-                "A concise summary of the conversation in 1-3 sentences.",
+                "A concise summary of the conversation in 2-5 sentences.",
               example:
                 "@alice and @bob discuss their pets. Alice tells about loving cats and that her cat named Venus.",
+            },
+            weight: {
+              type: Type.INTEGER,
+              description:
+                "How impactful this conversation was on other users, how important it is to remember, 1-10.",
+              example: 7,
             },
             messageStart: {
               type: Type.STRING,
               description:
-                "The id of the message with which conversation began, roughly.",
+                "The id of the message with which conversation began, roughly.\n" +
+                "Conversations can overlap by few messages, but no messages should be " +
+                "left out before and between conversations.",
               example: "1324",
             },
             messageEnd: {
               type: Type.STRING,
               description:
-                "The id of the message with which conversation ended, roughly.",
+                "The id of the message with which conversation ended, roughly.\n" +
+                "Conversations can overlap by few messages, but no messages should be " +
+                "left out before and between conversations.",
               example: "1646",
             },
             participants: {
@@ -362,6 +554,11 @@ export class ConversationService {
                       userId: 123456,
                     })} at the beginning of the message.`,
                     example: "@nickname",
+                  },
+                  weight: {
+                    type: Type.INTEGER,
+                    description:
+                      "How impactful this person's messages were on other users, 1-10.",
                   },
                   attitude: {
                     type: Type.OBJECT,
@@ -410,7 +607,11 @@ export class ConversationService {
                     type: Type.ARRAY,
                     description:
                       "List any important facts or statements made or confirmed by this person about themselves.\n" +
-                      "It's an optional field, limit amount of facts only to important ones.",
+                      "It's an optional field, limit amount of facts only to important ones.\n" +
+                      "If person claims model said something wrong, it's an important fact.\n" +
+                      "Never include any personally identifiable information information, such as " +
+                      "precise home or work address, place of work or study, phone numbers, " +
+                      "government ID's, emails. Can collect part of the names in one fact, but not full names.\n",
                     items: {
                       type: Type.STRING,
                       example: "Has a calico cat named Venus.",
@@ -422,7 +623,13 @@ export class ConversationService {
               required: ["name"],
             },
           },
-          required: ["summary", "messageStart", "messageEnd", "participants"],
+          required: [
+            "title",
+            "summary",
+            "messageStart",
+            "messageEnd",
+            "participants",
+          ],
         },
       },
     },

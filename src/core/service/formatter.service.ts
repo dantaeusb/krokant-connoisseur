@@ -29,6 +29,10 @@ export class FormatterService {
   }
 
   public formatRelativeTime(date: Date): string {
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
+      return "unknown time";
+    }
+
     const now = new Date();
     const diffInSeconds = Math.floor((date.getTime() - now.getTime()) / 1000);
 

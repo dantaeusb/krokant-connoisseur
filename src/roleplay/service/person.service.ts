@@ -1,9 +1,13 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
-import { PersonEntity } from "../entity/person.entity";
+import { PersonDocument, PersonEntity } from "../entity/person.entity";
 import { UserDocument, UserEntity } from "@core/entity/user.entity";
 import { Cron } from "@nestjs/schedule";
+import {
+  PersonThoughtDocument,
+  PersonThoughtEntity,
+} from "@roleplay/entity/person/thought.entity";
 
 export type PersonifiedUser = UserEntity & {
   person?: PersonEntity;
@@ -11,6 +15,8 @@ export type PersonifiedUser = UserEntity & {
 
 @Injectable()
 export class PersonService {
+  private static THOUGHT_HALF_LIFE_DAYS = 4;
+
   private readonly logger = new Logger("Roleplay/PersonService");
 
   constructor(
@@ -37,10 +43,9 @@ export class PersonService {
           userId,
         })),
       })
-      .lean()
       .exec();
 
-    const personMap: Map<string, PersonEntity> = new Map();
+    const personMap: Map<string, PersonDocument> = new Map();
     persons.forEach((person) => {
       personMap.set(`${person.chatId}-${person.userId}`, person);
     });
@@ -55,7 +60,7 @@ export class PersonService {
     chatId: number,
     userId: number,
     createIfNotExists = false
-  ): Promise<PersonEntity | null> {
+  ): Promise<PersonDocument | null> {
     return await this.personEntityModel
       .findOneAndUpdate(
         {
@@ -104,6 +109,66 @@ export class PersonService {
       )
       .exec();
   }
+
+  public getThoughtOpinionModifier = (
+    thought: PersonThoughtDocument,
+    currentDate?: Date
+  ) => {
+    let modifier = 0;
+
+    let hostility = 0;
+    const hostileThought = thought.factors.find(
+      (factor) => factor.factor === "hostile"
+    );
+    if (hostileThought) {
+      hostility = hostileThought.value / 10;
+    }
+
+    let repetitiveness = 0;
+    const repetitiveThought = thought.factors.find(
+      (factor) => factor.factor === "repetitiveness"
+    );
+    if (repetitiveThought) {
+      repetitiveness = repetitiveThought.value / 10;
+    }
+
+    let engagement = 0;
+    const engagementThought = thought.factors.find(
+      (factor) => factor.factor === "engagement"
+    );
+    if (engagementThought) {
+      engagement = engagementThought.value / 10;
+    }
+
+    let kindness = 0;
+    const kindnessThought = thought.factors.find(
+      (factor) => factor.factor === "kindness"
+    );
+    if (kindnessThought) {
+      kindness = kindnessThought.value / 10;
+    }
+
+    let playfulness = 0;
+    const playfulnessThought = thought.factors.find(
+      (factor) => factor.factor === "playfulness"
+    );
+    if (playfulnessThought) {
+      playfulness = playfulnessThought.value / 10;
+    }
+
+    modifier = -((hostility * 10) * (repetitiveness * 5));
+
+    if (currentDate) {
+      const days =
+        (currentDate.getTime() - thought.date.getTime()) /
+        (1000 * 60 * 60 * 24);
+      const halfLives = days / PersonService.THOUGHT_HALF_LIFE_DAYS;
+
+      return Math.round(modifier / Math.pow(2, halfLives));
+    }
+
+    return Math.round(modifier);
+  };
 
   /**
    * Deletes the PersonEntity for a user as part of the forgetme command.
