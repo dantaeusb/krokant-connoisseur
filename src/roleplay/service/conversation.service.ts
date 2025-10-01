@@ -461,7 +461,7 @@ export class ConversationService {
     );
   }
 
-  @Cron("0 * * * *")
+  @Cron("0 */6 * * *")
   public async processUnprocessedConversations(chatId?: number): Promise<void> {
     let chatIds = [];
 
