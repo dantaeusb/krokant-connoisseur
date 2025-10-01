@@ -1,8 +1,9 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 import { CharacterController } from "./controller/character.controller";
 import { MongooseModule } from "@nestjs/mongoose";
 import { CoreModule } from "@core/core.module";
 import { GenAiModule } from "@genai/genai.module";
+import { ModerationModule } from "@moderation/moderation.module";
 import { CharacterService } from "./service/character.service";
 import { TriggerService } from "./service/trigger.service";
 import { PersonService } from "./service/person.service";
@@ -25,6 +26,7 @@ import {
     ]),
     CoreModule,
     GenAiModule,
+    forwardRef(() => ModerationModule),
   ],
   providers: [
     CharacterController,

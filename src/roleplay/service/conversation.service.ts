@@ -106,8 +106,11 @@ export class ConversationService {
             text:
               `You are analyzing a chat log from a cluster of messages.\n` +
               `In that cluster, you need to identify separate conversations.\n` +
-              `Typically it's expected to have 1-3 conversations in the window.\n` +
+              `Typically it's expected to have 1-5 conversations in the window.\n` +
+              `Some conversations are small, some are large and span many messages.\n` +
               `Messages are starting with #Message ID: [User Handle] (Time)\n` +
+              `User handle has the format of @nickname or ID:UserID. Keep ` +
+              `[User Handle] formatting in the response.\n` +
               `If message says that it's hidden by user preferences, avoid ` +
               `extracting any information about it from context from other users.\n`,
           },
@@ -194,13 +197,24 @@ export class ConversationService {
         );
       });
 
-      let time = messagesInConversation[0]
+      const timeStart = messagesInConversation[0]
         ? messagesInConversation[0].date
         : new Date();
+      const timeEnd = messagesInConversation[messagesInConversation.length - 1]
+        ? messagesInConversation[messagesInConversation.length - 1].date
+        : new Date();
       // Round to hour
-      time = new Date(Math.floor(time.getTime() / (60 * 1000)) * 60 * 1000);
-      this.logger.log(
-        `Conversation time after rounding: ${time.toISOString()}`
+      const halfConversationPeriodMs = Math.round(
+        (timeEnd.getTime() - timeStart.getTime()) / 2
+      );
+      const midConversationTime = new Date(
+        timeStart.getTime() + halfConversationPeriodMs
+      );
+
+      const rounding = 15 * 60 * 1000; // 15 minutes
+
+      const time = new Date(
+        Math.round(midConversationTime.getTime() / rounding) * rounding
       );
 
       const conversationId = await this.counterService.getNextSequence(
@@ -434,8 +448,8 @@ export class ConversationService {
     } while (currentCharacterCount < characterCountLimit);
 
     this.logger.log(
-      `Conversation split into ${messageIdGapsGroups[0].length} messages ` +
-        `by gaps up to ~${Math.round(
+      `Selected conversation chunk of ${messageIdGapsGroups[0].length} messages ` +
+        `by gap of ~${Math.round(
           breakGap / 1000 / 60
         )}m to fit ${currentCharacterCount} characters`
     );
@@ -461,15 +475,10 @@ export class ConversationService {
       let processedCount = 0;
       do {
         try {
-          const conversation = await this.processOldestUnprocessedConversation(
-            chatId
-          );
+          await this.processOldestUnprocessedConversation(chatId);
 
           processedCount++;
-          this.logger.log(
-            `Processed conversation ${conversation.conversationId} ` +
-              `for chat ${chatId}`
-          );
+          this.logger.log(`Processed conversation for chat ${chatId}`);
         } catch (err) {
           this.logger.error(
             `Error processing conversations for chat ${chatId}: ${err.message}`,

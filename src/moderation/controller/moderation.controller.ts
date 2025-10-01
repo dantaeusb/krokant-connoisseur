@@ -1,4 +1,4 @@
-import { Logger, UseGuards } from "@nestjs/common";
+import { forwardRef, Inject, Logger, UseGuards } from "@nestjs/common";
 import {
   Command,
   Ctx,
@@ -45,6 +45,7 @@ export class ModerationController {
     private readonly profanityCheckService: ProfanityCheckService,
     private readonly userService: UserService,
     private readonly messageService: MessageService,
+    @Inject(forwardRef(() => CharacterService))
     private readonly characterService: CharacterService,
     private readonly formatterService: FormatterService
   ) {
@@ -462,7 +463,11 @@ export class ModerationController {
     );
 
     if (warn !== null) {
-      await this.reply(context, message, `You have ${warn.count} warning(s).`);
+      await this.reply(
+        context,
+        message,
+        `You have ${warn.count} of ${ModerationService.WARN_LIMIT} warning(s).`
+      );
     } else {
       await this.reply(context, message, "You have no warnings.");
     }

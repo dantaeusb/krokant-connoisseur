@@ -6,6 +6,7 @@ import { UserDocument } from "@core/entity/user.entity";
 import { CommandsService } from "@core/service/commands.service";
 import { MessageDocument } from "@core/entity/message.entity";
 import { FormatterService } from "@core/service/formatter.service";
+import { ModerationService } from "@moderation/service/moderation.service";
 import { ConversationDocument } from "../entity/conversation.entity";
 import { PersonService } from "./person.service";
 
@@ -17,6 +18,7 @@ export class PromptService {
     private readonly configService: ConfigService,
     private readonly userService: UserService,
     private readonly personService: PersonService,
+    private readonly moderationService: ModerationService,
     private readonly commandsService: CommandsService,
     private readonly formatterService: FormatterService
   ) {}
@@ -122,6 +124,36 @@ export class PromptService {
       userParticipants
     );
 
+    let [warns, bans] = await Promise.all([
+      Promise.all(
+        usersWithPersons.map((user) => {
+          return this.moderationService
+            .getWarns(user.chatId, user.userId)
+            .then((warn) =>
+              warn ? { userId: user.userId, count: warn.count } : null
+            );
+        })
+      ),
+      Promise.all(
+        usersWithPersons.map((user) => {
+          return this.moderationService
+            .getBans(user.chatId, user.userId)
+            .then((ban) =>
+              ban
+                ? {
+                    userId: user.userId,
+                    severity: ban.severity,
+                    reason: ban.reason,
+                  }
+                : null
+            );
+        })
+      ),
+    ]);
+
+    warns = warns.filter((w) => w !== null);
+    bans = bans.filter((b) => b !== null);
+
     usersWithPersons.forEach((user) => {
       if (
         user.person &&
@@ -131,7 +163,27 @@ export class PromptService {
       ) {
         let personDescription = `Information about conversation participant [${this.userService.getSafeUniqueIdentifier(
           user
-        )}] – use it but do not directly disclose it:\n`;
+        )}]\n`;
+
+        const warn = warns.find((w) => w.userId === user.userId);
+
+        if (warn && warn.count > 0) {
+          personDescription += `This user has been warned ${warn.count} times out of ${ModerationService.WARN_LIMIT}\n`;
+        }
+
+        const ban = bans.find((b) => b.userId === user.userId);
+
+        if (ban) {
+          if (ban.severity > 0) {
+            personDescription += `This user was banned ${
+              ban.severity - 1
+            } times, last one for reason: ${ban.reason}\n`;
+          } else if (ban.severity > 8) {
+            personDescription += `This user is permanently banned for reason: ${ban.reason}\n`;
+          }
+        }
+
+        personDescription += `\nPersonality and relationship information – use it but do not directly disclose it:\n`;
         if (user.person.names.length > 0) {
           personDescription += `Their other names or names are:${user.person.names.join(
             ", "

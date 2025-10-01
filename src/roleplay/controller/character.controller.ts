@@ -392,8 +392,9 @@ export class CharacterController {
   ): Promise<void> {
     this.logger.debug("Handling /conversation command");
 
-    const result = await this.conversationService.processUnprocessedConversations(
-      context.chat.id
-    );
+    const result =
+      await this.conversationService.processUnprocessedConversations(
+        context.chat.id
+      );
   }
 }
