@@ -68,6 +68,13 @@ export class MessageService {
     const message = await this.bot.telegram.sendMessage(chatId, text, {
       ...extra,
       parse_mode: extra?.parse_mode ?? "Markdown",
+      link_preview_options: {
+        is_disabled: true,
+        // Following doesn't work so I left disabling it completely.
+        prefer_small_media: true,
+        prefer_large_media: false,
+        ...extra?.link_preview_options,
+      },
     });
 
     this.recordOwnMessage(

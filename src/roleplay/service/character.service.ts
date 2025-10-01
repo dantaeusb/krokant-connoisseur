@@ -110,20 +110,36 @@ export class CharacterService {
       parts: [{ text: `Reply to following message: ${text}` }],
     });
 
-    let result = this.needGoodModel(text)
-      ? await this.geminiService.good(promptList, config.characterSystemPrompt)
+    const candidate = this.needGoodModel(text)
+      ? await this.geminiService.good(
+          promptList,
+          config.characterSystemPrompt,
+          config.canGoogle
+        )
       : await this.geminiService.regular(
           promptList,
-          config.characterSystemPrompt
+          config.characterSystemPrompt,
+          config.canGoogle
         );
 
-    if (!result) {
+    if (!candidate) {
       return this.fallback();
     }
 
-    result = result.replace(/^>+/g, "");
+    let answer = candidate.content.parts.map((part) => part.text).join("\n");
+    answer = answer.replace(/^>+/g, "");
 
-    return result;
+    if (candidate.groundingMetadata?.webSearchQueries) {
+      answer += `\n\n(Searched Google for: ${candidate.groundingMetadata.webSearchQueries
+        .map((query) => {
+          return `"[${query}](https://www.google.com/search?q=${encodeURIComponent(
+            query
+          )})"`;
+        })
+        .join(", ")})`;
+    }
+
+    return answer;
   }
 
   public async rephrase(
@@ -152,16 +168,19 @@ export class CharacterService {
       ...rephrasePrompt,
     ];
 
-    const result = await this.geminiService.quick(
+    const candidate = await this.geminiService.quick(
       promptList,
       chatConfig.characterSystemPrompt
     );
 
-    if (!result) {
-      return this.fallback();
+    if (!candidate) {
+      return text;
     }
 
-    return result;
+    let answer = candidate.content.parts.map((part) => part.text).join("\n");
+    answer = answer.replace(/^>+/g, "");
+
+    return answer;
   }
 
   private async collectCurrentConversationContext(

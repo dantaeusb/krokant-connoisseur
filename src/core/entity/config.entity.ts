@@ -1,12 +1,12 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import {
   PingGroupEntity,
-  PingGroupSchema
+  PingGroupSchema,
 } from "@core/entity/ping-group.entity";
 import { HydratedDocument, Types } from "mongoose";
 import {
   ProfanityFilterEntity,
-  ProfanityFilterSchema
+  ProfanityFilterSchema,
 } from "@moderation/entity/profanity-filter.entity";
 
 export type ConfigDocument = HydratedDocument<
@@ -51,7 +51,7 @@ export class ConfigEntity {
       "a message to respond or rephrase.\n" +
       "Do not include message markers like [] or > in your responses.\n" +
       "Try to address users by their nicknames or names if possible, avoid using " +
-      "handles or ID's unless the question better redirected to the person.\n"
+      "handles or ID's unless the question better redirected to the person.\n",
   })
   characterSystemPrompt: string;
 
@@ -80,6 +80,9 @@ export class ConfigEntity {
    */
   @Prop({ default: "" })
   summarizerSystemPrompt: string;
+
+  @Prop({ default: false })
+  canGoogle: boolean;
 
   @Prop([PingGroupSchema])
   pingGroups: Array<PingGroupEntity>;

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import {
+  Candidate,
   ContentListUnion,
   GenerateContentResponse,
   GoogleGenAI,
@@ -59,8 +60,9 @@ export class GeminiService {
 
   public async good(
     prompt: ContentListUnion,
-    systemPrompt?: string
-  ): Promise<string | null> {
+    systemPrompt?: string,
+    canGoogle = false
+  ): Promise<Candidate | null> {
     const result = await this.googleGenAI.models.generateContent({
       model: "gemini-2.5-pro",
       contents: prompt,
@@ -70,18 +72,20 @@ export class GeminiService {
         systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
         temperature: 1.5,
         topP: 0.85,
+        ...(canGoogle ? { tools: [{ googleSearch: {} }] } : {}),
       },
     });
 
     this.resultSanityCheck(result);
 
-    return result.text ?? null;
+    return result.candidates[0];
   }
 
   public async regular(
     prompt: ContentListUnion,
-    systemPrompt?: string
-  ): Promise<string | null> {
+    systemPrompt?: string,
+    canGoogle = false
+  ): Promise<Candidate | null> {
     const result = await this.googleGenAI.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
@@ -91,18 +95,19 @@ export class GeminiService {
         systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
         temperature: 1.3,
         topP: 0.9,
+        ...(canGoogle ? { tools: [{ googleSearch: {} }] } : {}),
       },
     });
 
     this.resultSanityCheck(result);
 
-    return result.text ?? null;
+    return result.candidates[0];
   }
 
   public async quick(
     prompt: ContentListUnion,
     systemPrompt?: string
-  ): Promise<string | null> {
+  ): Promise<Candidate | null> {
     const result = await this.googleGenAI.models.generateContent({
       model: "gemini-2.5-flash-lite",
       contents: prompt,
@@ -117,11 +122,7 @@ export class GeminiService {
 
     this.resultSanityCheck(result);
 
-    return (
-      result.candidates[0].content.parts
-        .map((part) => part.text || "")
-        .join("\n") ?? null
-    );
+    return result.candidates[0];
   }
 
   /**
@@ -135,7 +136,7 @@ export class GeminiService {
     contents: ContentListUnion,
     responseSchema: Schema,
     systemPrompt?: string
-  ) {
+  ): Promise<Candidate> {
     const result = await this.googleGenAI.models.generateContent({
       model: "gemini-2.5-pro",
       contents,
@@ -152,11 +153,7 @@ export class GeminiService {
 
     this.resultSanityCheck(result);
 
-    return JSON.parse(
-      result.candidates[0].content.parts
-        .map((part) => part.text || "")
-        .join("\n") ?? null
-    );
+    return result.candidates[0];
   }
 
   public async quickRate(

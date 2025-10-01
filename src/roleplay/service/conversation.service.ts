@@ -7,7 +7,12 @@ import { MessageService } from "@core/service/message.service";
 import { UserService } from "@core/service/user.service";
 import { PersonService } from "@roleplay/service/person.service";
 import { MessageDocument } from "@core/entity/message.entity";
-import { Content, Schema as GenAiOpenApiSchema, Type } from "@google/genai";
+import {
+  Candidate,
+  Content,
+  Schema as GenAiOpenApiSchema,
+  Type,
+} from "@google/genai";
 import { PromptService } from "@roleplay/service/prompt.service";
 import { UserDocument } from "@core/entity/user.entity";
 import {
@@ -137,16 +142,15 @@ export class ConversationService {
       true
     );
 
-    //this.logger.debug(messagesPrompt);
+    const candidate: Candidate = await this.geminiService.summarizeAndRate(
+      [...promptList, ...messagesPrompt],
+      this.summarizationSchema,
+      `${config.summarizerSystemPrompt}`
+    );
 
-    const response: SummarizationResponse =
-      await this.geminiService.summarizeAndRate(
-        [...promptList, ...messagesPrompt],
-        this.summarizationSchema,
-        `${config.summarizerSystemPrompt}`
-      );
-
-    this.logger.log(response);
+    const response: SummarizationResponse = JSON.parse(
+      candidate.content.parts.map((part) => part.text || "").join("\n") ?? null
+    );
 
     for (const conversation of response.conversations) {
       const messageStartId = parseInt(
