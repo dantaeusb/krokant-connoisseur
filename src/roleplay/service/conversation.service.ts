@@ -448,8 +448,14 @@ export class ConversationService {
   }
 
   @Cron("0 * * * *")
-  public async processUnprocessedConversations(): Promise<void> {
-    const chatIds = await this.configService.getAllChatIds();
+  public async processUnprocessedConversations(chatId?: number): Promise<void> {
+    let chatIds = [];
+
+    if (chatId) {
+      chatIds = [chatId];
+    } else {
+      chatIds = await this.configService.getAllChatIds();
+    }
 
     for (const chatId of chatIds) {
       let processedCount = 0;
@@ -459,15 +465,11 @@ export class ConversationService {
             chatId
           );
 
-          if (conversation) {
-            processedCount++;
-            this.logger.log(
-              `Processed conversation ${conversation.conversationId} ` +
-                `for chat ${chatId}`
-            );
-          } else {
-            break;
-          }
+          processedCount++;
+          this.logger.log(
+            `Processed conversation ${conversation.conversationId} ` +
+              `for chat ${chatId}`
+          );
         } catch (err) {
           this.logger.error(
             `Error processing conversations for chat ${chatId}: ${err.message}`,
