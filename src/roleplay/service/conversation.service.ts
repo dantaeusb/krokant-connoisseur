@@ -626,6 +626,7 @@ export class ConversationService {
           required: [
             "title",
             "summary",
+            "weight",
             "messageStart",
             "messageEnd",
             "participants",
