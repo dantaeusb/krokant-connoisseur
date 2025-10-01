@@ -17,7 +17,30 @@ export class LoggingController {
     private readonly configService: ConfigService,
     private readonly userService: UserService,
     private readonly messageService: MessageService
-  ) {}
+  ) { }
+
+  @On("edited_message")
+  public async updateMessage(
+    @Ctx()
+    context: Context<TelegramUpdate.EditedMessageUpdate>,
+    @Next() next: () => Promise<void>
+  ): Promise<void> {
+    this.logger.debug("Handling edited message for logging");
+    try {
+      const edited = context.update.edited_message;
+
+      if ('text' in edited && edited.text) {
+        const message = await this.messageService.updateMessage(context);
+        this.logger.debug('Successfully updated message text');
+      } else {
+        this.logger.debug('Edited message is not text-based');
+      }
+    } catch (error) {
+      this.logger.error('Error updating message:', error);
+    }
+
+    await next();
+  }
 
   @On("message")
   public async recordMessage(
