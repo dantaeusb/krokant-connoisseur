@@ -29,7 +29,7 @@ export class MessageService {
    * If there are less messages than this threshold in the summarization window,
    * we won't summarize them yet.
    */
-  public static readonly MESSAGE_SUMMARIZATION_THRESHOLD = 200;
+  public static readonly MESSAGE_SUMMARIZATION_THRESHOLD = 700;
 
   private readonly logger = new Logger("Core/MessageService");
 
@@ -308,10 +308,19 @@ export class MessageService {
     conversationId: number
   ): Promise<number> {
     const result = await this.messageEntityModel
-      .updateMany(
-        { chatId: chatId, messageId: { $in: messageIds } },
-        { $push: { conversationIds: conversationId } }
-      )
+      .updateMany({ chatId: chatId, messageId: { $in: messageIds } }, [
+        {
+          $set: {
+            conversationIds: {
+              $cond: {
+                if: { $isArray: "$conversationIds" },
+                then: { $concatArrays: ["$conversationIds", [conversationId]] },
+                else: [conversationId],
+              },
+            },
+          },
+        },
+      ])
       .exec();
 
     this.logger.log(

@@ -13,6 +13,10 @@ type MessageDocumentWithChain = MessageDocument & {
   isInChain?: boolean;
 };
 
+/**
+ * @todo: [MED]: Use explicit caching for chat info ant conversations,
+ * they rarely update (every 6 hrs)
+ */
 @Injectable()
 export class CharacterService {
   private static PRO_TRIGGER_CHANCE = 0.2;
@@ -191,7 +195,7 @@ export class CharacterService {
       Array<MessageDocument>,
       Array<MessageDocumentWithChain>
     ] = await Promise.all([
-      this.messageService.getLatestMessages(chatId, 400),
+      this.messageService.getLatestMessages(chatId, 800),
       this.messageService.getMessageChain(chatId, messageId),
     ]);
 

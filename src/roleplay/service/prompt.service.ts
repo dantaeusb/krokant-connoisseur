@@ -71,6 +71,7 @@ export class PromptService {
           },
         ],
       },
+      // @todo: [HIGH] This breaks the cache! Add later as a separate prompt that is not cached.
       {
         role: "user",
         parts: [

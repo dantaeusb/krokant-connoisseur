@@ -46,6 +46,9 @@ type SummarizationResponse = {
   }>;
 };
 
+/**
+ * @todo: [HIGH] Use Batch API to reduce costs – there's no need to do this job real time
+ */
 @Injectable()
 export class ConversationService {
   private static MAX_CONVERSATION_GAP_MS = 1000 * 60 * 60 * 4; // 4 hours
@@ -488,6 +491,10 @@ export class ConversationService {
             `Error processing conversations for chat ${chatId}: ${err.message}`,
             err.stack
           );
+          processedCount++;
+          // Not having this put me in debt to Alphabet LLC for life
+          // Thread carefully
+          break;
         }
       } while (processedCount < ConversationService.MAX_RUNS_PER_HOUR);
 

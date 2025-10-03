@@ -31,7 +31,7 @@ export class LanguageCheckService {
     pt: LanguageCheckService.PORTUGUESE_LETTERS,
   };
 
-  private static LANGUAGE_SOFT_WARNS_TO_WARN = 5;
+  private static LANGUAGE_SOFT_WARNS_TO_WARN = 4;
 
   // It's not very good, it removes chracters next to emojis too, but it's the best I was able to find so far.
   private emojiRegex =
@@ -151,7 +151,8 @@ export class LanguageCheckService {
 
   @Cron("*/30 * * * *")
   public async cooldownLanguageWarnings() {
-    const cooldownDate = new Date(Date.now() - 30 * 60 * 1000); // 30 minutes ago
+    // Reduce the count of language warnings by 1 for users who haven't been warned in the last hour
+    const cooldownDate = new Date(Date.now() - 60 * 60 * 1000);
 
     const results = await this.languageWarnEntityModel.updateMany(
       { updatedAt: { $lt: cooldownDate }, count: { $gt: 0 } },

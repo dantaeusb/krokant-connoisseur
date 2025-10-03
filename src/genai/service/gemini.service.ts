@@ -127,7 +127,7 @@ export class GeminiService {
 
   /**
    * Cool shit: https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/control-generated-output
-   * As it's probably the most important part, let's use only the best model
+   * As it's probably the most important part, let's use only the best mode.
    *
    * @param prompt
    * @param systemPrompt
