@@ -23,6 +23,20 @@ export class PromptService {
     private readonly formatterService: FormatterService
   ) {}
 
+  public async getRoleplayCharacterSystemInstructions(
+    chatId: number
+  ): Promise<string> {
+    const config = await this.configService.getConfig(chatId);
+
+    let instructions = config.characterSystemPrompt;
+
+    instructions += `\nFormat your replies in Markdown. Do not use headings.\n`;
+
+    this.logger.debug(`System instructions length: ${instructions.length}`);
+
+    return instructions;
+  }
+
   public async getPromptFromChatCharacter(
     chatId: number
   ): Promise<Array<Content>> {

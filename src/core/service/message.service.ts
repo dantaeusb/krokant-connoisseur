@@ -31,6 +31,23 @@ export class MessageService {
    */
   public static readonly MESSAGE_SUMMARIZATION_THRESHOLD = 700;
 
+  /**
+   * Telegram message length limit. If message exceeds this length, it needs to be
+   * split into multiple messages. We'll try to split on sensible boundaries,
+   * first trying double newlines, then single newlines, then sentence-ending
+   * punctuation, and finally just spaces. If none of these are found,
+   * we'll have to split at the max length.
+   */
+  public static readonly TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
+  private static readonly MESSAGE_BREAK_SYMBOLS = [
+    "\n\n",
+    "\n",
+    "? ",
+    "! ",
+    ". ",
+    " ",
+  ];
+
   private readonly logger = new Logger("Core/MessageService");
 
   constructor(
@@ -88,6 +105,68 @@ export class MessageService {
     });
 
     return message;
+  }
+
+  /**
+   * @todo: [CRIT] Vibe coded, re-read and test properly.
+   * @param text
+   * @param parseMode
+   */
+  public splitMessage(
+    text: string,
+    parseMode: ParseMode = "Markdown"
+  ): string[] {
+    if (text.length <= MessageService.TELEGRAM_MAX_MESSAGE_LENGTH) {
+      return [text];
+    }
+
+    const segments: string[] = [];
+    let remainingText = text;
+
+    while (remainingText.length > MessageService.TELEGRAM_MAX_MESSAGE_LENGTH) {
+      let splitIndex = -1;
+
+      for (const symbol of MessageService.MESSAGE_BREAK_SYMBOLS) {
+        const index = remainingText.lastIndexOf(
+          symbol,
+          MessageService.TELEGRAM_MAX_MESSAGE_LENGTH
+        );
+
+        if (index !== -1) {
+          splitIndex = index + symbol.length;
+          break;
+        }
+      }
+
+      if (splitIndex === -1) {
+        splitIndex = MessageService.TELEGRAM_MAX_MESSAGE_LENGTH;
+      }
+
+      let segment = remainingText.slice(0, splitIndex).trim();
+
+      if (parseMode === "Markdown") {
+        segment = this.formatterService.escapeMarkdown(segment);
+      } else if (parseMode === "MarkdownV2") {
+        //segment = this.formatterService.escapeMarkdownV2(segment);
+      }
+
+      segments.push(segment);
+      remainingText = remainingText.slice(splitIndex).trim();
+    }
+
+    if (remainingText.length > 0) {
+      let segment = remainingText;
+
+      if (parseMode === "Markdown") {
+        segment = this.formatterService.escapeMarkdown(segment);
+      } else if (parseMode === "MarkdownV2") {
+        //segment = this.formatterService.escapeMarkdownV2(segment);
+      }
+
+      segments.push(segment);
+    }
+
+    return segments;
   }
 
   public async getTargetUserFromMessage(

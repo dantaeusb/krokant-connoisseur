@@ -187,6 +187,18 @@ export class CharacterService {
     return answer;
   }
 
+  /**
+   * @todo: [HIGH] having N last messages *breaks the cache*
+   * It is much more efficient for LLM to cache shit ton of messages
+   * since last summarization than try to narrow down the context,
+   * especially with Gemini that can do 1M tokens (that's like 35 000 000 chars).
+   * Better done with explicit cache, but implicit will work if we do
+   * "messages since" and do much more rough time rounding for past messages
+   * We also need to remove current time and for that rewrite prompt.
+   * @param chatId
+   * @param messageId
+   * @private
+   */
   private async collectCurrentConversationContext(
     chatId: number,
     messageId: number
