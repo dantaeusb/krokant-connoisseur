@@ -58,7 +58,7 @@ export class MessageService {
     private readonly formatterService: FormatterService,
     private readonly configService: ConfigService,
     private readonly userService: UserService
-  ) { }
+  ) {}
 
   /**
    * Sends a message through Telegram API and records it in the database to keep
@@ -78,7 +78,7 @@ export class MessageService {
       text = this.formatterService.escapeHandles(text);
     }
 
-    const splitTexts = await this.splitAndEscapeMessage(text);
+    const splitTexts = this.splitAndEscapeMessage(text);
     let lastMessage: Message.TextMessage | null = null;
 
     for (const splitText of splitTexts) {
@@ -118,10 +118,6 @@ export class MessageService {
    * @param parseMode
    */
   public splitAndEscapeMessage(text: string): Array<string> {
-    if (text.length <= MessageService.TELEGRAM_MAX_MESSAGE_LENGTH) {
-      return [text];
-    }
-
     const segments: string[] = [];
     let remainingText = text;
 
@@ -233,9 +229,7 @@ export class MessageService {
 
   public async updateMessage(
     context: Context<Update.EditedMessageUpdate>
-  ): Promise<HydratedMessageDocument | void> {
-    this.logger.log('hi');
-
+  ): Promise<MessageDocument | void> {
     const edited = context.update.edited_message;
 
     if (!context.update.edited_message) {
@@ -249,21 +243,19 @@ export class MessageService {
 
     if (!message) {
       this.logger.warn(
-        `Message not found for update: chatId=${edited.chat.id}, messageId=${edited.message_id}`,
+        `Message not found for update: chatId=${edited.chat.id}, messageId=${edited.message_id}`
       );
       return;
     }
 
-
-    if ('text' in edited && edited.text) {
+    if ("text" in edited && edited.text) {
       if (message.text != "[Hidden by user preference]") {
         message.text = edited.text;
       }
-      message.updatedAt = new Date();
     }
 
     return message.save().catch((error) => {
-      this.logger.error('Failed to update message:', error);
+      this.logger.error("Failed to update message:", error);
     });
   }
 

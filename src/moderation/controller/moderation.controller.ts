@@ -303,6 +303,8 @@ export class ModerationController {
         ? context.update.message
         : context.update.edited_message;
 
+    const isEdited = "edited_message" in context.update;
+
     if (!context.text || context.from.is_bot) {
       return next();
     }
@@ -316,19 +318,21 @@ export class ModerationController {
     if (
       this.languageCheckService.containsNonLanguageSymbols(context.text, ["en"])
     ) {
-      this.translationService
-        .translateText(context.text)
-        .then((translatedText) => {
-          if (translatedText) {
-            this.messageService.sendMessage(context.chat.id, translatedText, {
-              reply_parameters: {
-                message_id: message.message_id,
-                chat_id: context.chat.id,
-                allow_sending_without_reply: false,
-              },
-            });
-          }
-        });
+      if (!isEdited) {
+        this.translationService
+          .translateText(context.text)
+          .then((translatedText) => {
+            if (translatedText) {
+              this.messageService.sendMessage(context.chat.id, translatedText, {
+                reply_parameters: {
+                  message_id: message.message_id,
+                  chat_id: context.chat.id,
+                  allow_sending_without_reply: false,
+                },
+              });
+            }
+          });
+      }
 
       if (
         !isChannelComment ||
