@@ -1,7 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Context, Telegraf } from "telegraf";
 import { Update } from "telegraf/types";
-import { ExtraReplyMessage } from "telegraf/typings/telegram-types";
 import { ParseMode, Message } from "@telegraf/types/message";
 import { InjectModel } from "@nestjs/mongoose";
 import { InjectBot } from "nestjs-telegraf";
@@ -11,6 +10,7 @@ import { MessageDocument, MessageEntity } from "@core/entity/message.entity";
 import { ConfigService } from "./config.service";
 import { UserService } from "./user.service";
 import { FormatterService } from "./formatter.service";
+import { ExtraReplyMessage } from "telegraf/typings/telegram-types";
 
 /**
  * General message utilities.
@@ -58,7 +58,7 @@ export class MessageService {
     private readonly formatterService: FormatterService,
     private readonly configService: ConfigService,
     private readonly userService: UserService
-  ) {}
+  ) { }
 
   /**
    * Sends a message through Telegram API and records it in the database to keep
@@ -237,6 +237,42 @@ export class MessageService {
     }
 
     return null;
+  }
+
+  public async updateMessage(
+    context: Context<Update.EditedMessageUpdate>
+  ): Promise<HydratedMessageDocument | void> {
+    this.logger.log('hi');
+
+    const edited = context.update.edited_message;
+
+    if (!context.update.edited_message) {
+      return;
+    }
+
+    const message = await this.messageEntityModel.findOne({
+      chatId: edited.chat.id,
+      messageId: edited.message_id,
+    });
+
+    if (!message) {
+      this.logger.warn(
+        `Message not found for update: chatId=${edited.chat.id}, messageId=${edited.message_id}`,
+      );
+      return;
+    }
+
+
+    if ('text' in edited && edited.text) {
+      if (message.text != "[Hidden by user preference]") {
+        message.text = edited.text;
+      }
+      message.updatedAt = new Date();
+    }
+
+    return message.save().catch((error) => {
+      this.logger.error('Failed to update message:', error);
+    });
   }
 
   public async recordMessage(
