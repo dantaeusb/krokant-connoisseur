@@ -12,6 +12,7 @@ export class FormatterService {
   });
 
   public escapeMarkdown(text: string): string {
+    text.replace('\*\*', '\*');
     return text.replace(/([#+=|{}])/gm, "\\$1");
   }
 
