@@ -19,6 +19,7 @@ import { MessageService } from "@core/service/message.service";
 import { TriggerService } from "../service/trigger.service";
 import { CharacterService } from "../service/character.service";
 import { PersonService } from "../service/person.service";
+import { ConversationService } from "../service/conversation.service";
 
 /**
  * Handles character talking and responses.
@@ -28,7 +29,7 @@ import { PersonService } from "../service/person.service";
  */
 @Update()
 export class CharacterController {
-  private readonly logger = new Logger("Character/TalkingController");
+  private readonly logger = new Logger("Roleplay/TalkingController");
 
   constructor(
     @InjectBot(ClankerBotName)
@@ -39,6 +40,7 @@ export class CharacterController {
     private readonly messageService: MessageService,
     private readonly userService: UserService,
     private readonly personService: PersonService,
+    private readonly conversationService: ConversationService,
     private readonly formatterService: FormatterService
   ) {
     Promise.all([
@@ -153,6 +155,16 @@ export class CharacterController {
       return next();
     }
 
+    const cooldown = await this.triggerService.isOnCooldown(
+      context.chat.id,
+      user.userId
+    );
+
+    if (cooldown) {
+      this.logger.log(`Not responding to user ${user.userId} due to cooldown.`);
+      return next();
+    }
+
     const response = await this.characterService.respond(
       context.chat.id,
       message.message_id,
@@ -172,6 +184,8 @@ export class CharacterController {
       .catch((error) =>
         this.logger.error("Failed to send character response message", error)
       );
+
+    void this.personService.countInteraction(context.chat.id, user.userId);
 
     return next();
   }
@@ -319,19 +333,11 @@ export class CharacterController {
     const chatId = context.chat.id;
 
     try {
-      const hiddenMessagesCount = await this.messageService.hideUserMessages(
-        chatId,
-        userId
-      );
-
-      // Clear personal data from person entity
-      const personalDataCleared = await this.personService.clearPersonalData(
-        chatId,
-        userId
-      );
-
-      // Set user to ignore to prevent future data collection
-      await this.userService.setIgnore(chatId, userId, true);
+      const [hiddenMessagesCount, personalDataCleared] = await Promise.all([
+        this.messageService.hideUserMessages(chatId, userId),
+        this.personService.clearPersonalData(chatId, userId),
+        this.userService.setIgnore(chatId, userId, true),
+      ]);
 
       this.logger.log(
         `User ${userId} requested data deletion. Hidden ${hiddenMessagesCount} messages, cleared personal data: ${personalDataCleared}`
@@ -339,8 +345,8 @@ export class CharacterController {
 
       await context.sendMessage(
         `All your data has been deleted from my memory.\n\n` +
-        `- Set you as ignored for future interactions\n\n` +
-        `Note: Moderation records (warnings/bans) are preserved for administrative purposes.`,
+          `- Set you as ignored for future interactions\n\n` +
+          `Note: Moderation records (warnings/bans) are preserved for administrative purposes.`,
         {
           reply_parameters: {
             message_id: message.message_id,
@@ -351,6 +357,7 @@ export class CharacterController {
       );
     } catch (error) {
       this.logger.error("Failed to process forgetme command", error);
+
       await context.sendMessage(
         "Failed to delete your data. Please try again or contact @dantaeusb",
         {
@@ -376,5 +383,18 @@ export class CharacterController {
     users.forEach((user) => {
       this.personService.getPerson(context.chat.id, user.userId, true);
     });
+  }
+
+  @Command("conversation")
+  @UseGuards(AdminGuard)
+  async conversationCommand(
+    @Ctx() context: Context<TelegramUpdate.MessageUpdate>
+  ): Promise<void> {
+    this.logger.debug("Handling /conversation command");
+
+    const result =
+      await this.conversationService.processUnprocessedConversations(
+        context.chat.id
+      );
   }
 }

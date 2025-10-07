@@ -68,7 +68,7 @@ export class ToolsController {
 
   @Command("group_create")
   @UseGuards(AdminGuard)
-  async groupCreate(
+  async groupCreateCommand(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>
   ): Promise<void> {
     this.logger.debug("Handling /group_create command");
@@ -113,7 +113,7 @@ export class ToolsController {
    * @param context
    */
   @Command("group_add")
-  async groupAdd(
+  async groupAddCommand(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>
   ): Promise<void> {
     this.logger.debug("Handling /group_add command");
@@ -192,7 +192,7 @@ export class ToolsController {
   }
 
   @On("message")
-  public async recordMessage(
+  public async messageCheckGroupPing(
     @Ctx()
     context: Context<TelegramUpdate.MessageUpdate>,
     @Message()

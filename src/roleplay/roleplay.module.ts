@@ -1,27 +1,41 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 import { CharacterController } from "./controller/character.controller";
 import { MongooseModule } from "@nestjs/mongoose";
 import { CoreModule } from "@core/core.module";
-import { GeminiService } from "./service/gemini.service";
+import { GenAiModule } from "@genai/genai.module";
+import { ModerationModule } from "@moderation/moderation.module";
 import { CharacterService } from "./service/character.service";
 import { TriggerService } from "./service/trigger.service";
 import { PersonService } from "./service/person.service";
 import { PersonEntity, PersonEntitySchema } from "./entity/person.entity";
+import { PromptService } from "./service/prompt.service";
+import { ConversationService } from "./service/conversation.service";
+import {
+  ConversationEntity,
+  ConversationEntitySchema,
+} from "@roleplay/entity/conversation.entity";
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: PersonEntity.COLLECTION_NAME, schema: PersonEntitySchema },
+      {
+        name: ConversationEntity.COLLECTION_NAME,
+        schema: ConversationEntitySchema,
+      },
     ]),
     CoreModule,
+    GenAiModule,
+    forwardRef(() => ModerationModule),
   ],
   providers: [
     CharacterController,
-    GeminiService,
+    ConversationService,
     CharacterService,
     TriggerService,
     PersonService,
+    PromptService,
   ],
   exports: [CharacterService],
 })
-export class CharacterModule {}
+export class RoleplayModule {}

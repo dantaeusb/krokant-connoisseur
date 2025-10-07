@@ -27,7 +27,8 @@ export class CommandsService {
 
   private wiped = false;
   private initializationSemaphore = new Semaphore(1);
-  private commands: Map<BotCommandScopeType, Array<ExtendedBotCommand>> = new Map();
+  private commands: Map<BotCommandScopeType, Array<ExtendedBotCommand>> =
+    new Map();
 
   constructor(
     @InjectBot(ClankerBotName)
@@ -100,6 +101,19 @@ export class CommandsService {
 
   public getCommands(scope: BotCommandScopeType): Array<ExtendedBotCommand> {
     return this.commands.get(scope) || [];
+  }
+
+  /**
+   * Get text following the command in a message.
+   * @param text
+   */
+  public getCommandArgumentString(text: string): string | null {
+    const parts = text.trim().split(" ");
+    if (parts.length <= 1) {
+      return null;
+    }
+    parts.shift();
+    return parts.join(" ").trim();
   }
 
   /**

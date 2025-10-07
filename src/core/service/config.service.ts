@@ -66,6 +66,14 @@ export class ConfigService {
     return config;
   }
 
+  public async getAllChatIds(): Promise<number[]> {
+    const configs = await this.configModel
+      .find({}, { chatId: 1, _id: 0 })
+      .exec();
+
+    return configs.map((config) => config.chatId);
+  }
+
   public async setYapping(chatId: number, yapping: boolean) {
     const config = await this.getConfig(chatId);
 

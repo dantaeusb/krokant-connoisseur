@@ -17,8 +17,8 @@ export class ModerationService {
    * 9/27/81/243/729
    * @private
    */
+  public static WARN_LIMIT = 3;
   private static BASE_BAN_DURATION_HOURS = 3;
-  private static WARN_LIMIT = 3;
 
   constructor(
     @InjectBot(ClankerBotName) private readonly bot: Telegraf<Context>,

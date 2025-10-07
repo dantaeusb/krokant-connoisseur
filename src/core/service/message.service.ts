@@ -6,10 +6,7 @@ import { InjectModel } from "@nestjs/mongoose";
 import { InjectBot } from "nestjs-telegraf";
 import { Model, pluralize } from "mongoose";
 import { ClankerBotName } from "@/app.constants";
-import {
-  HydratedMessageDocument,
-  MessageEntity,
-} from "@core/entity/message.entity";
+import { MessageDocument, MessageEntity } from "@core/entity/message.entity";
 import { ConfigService } from "./config.service";
 import { UserService } from "./user.service";
 import { FormatterService } from "./formatter.service";
@@ -20,6 +17,37 @@ import { ExtraReplyMessage } from "telegraf/typings/telegram-types";
  */
 @Injectable()
 export class MessageService {
+  public static readonly HIDDEN_MESSAGE_TEXT = "[Hidden by user preference]";
+  /**
+   * 36 hours - time window to consider messages for conversation summarization.
+   * Messages before this period could be summarized into a single prompt.
+   */
+  public static readonly CONVERSATION_SUMMARIZATION_WINDOW_MS =
+    36 * 60 * 60 * 1000;
+
+  /**
+   * If there are less messages than this threshold in the summarization window,
+   * we won't summarize them yet.
+   */
+  public static readonly MESSAGE_SUMMARIZATION_THRESHOLD = 700;
+
+  /**
+   * Telegram message length limit. If message exceeds this length, it needs to be
+   * split into multiple messages. We'll try to split on sensible boundaries,
+   * first trying double newlines, then single newlines, then sentence-ending
+   * punctuation, and finally just spaces. If none of these are found,
+   * we'll have to split at the max length.
+   */
+  public static readonly TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
+  private static readonly MESSAGE_BREAK_SYMBOLS = [
+    "\n\n",
+    "\n",
+    "? ",
+    "! ",
+    ". ",
+    " ",
+  ];
+
   private readonly logger = new Logger("Core/MessageService");
 
   constructor(
@@ -37,20 +65,33 @@ export class MessageService {
    * track of conversation history.
    * @param chatId
    * @param text
-   * @param parseMode
    * @param extra
+   * @param avoidPings
    */
   public async sendMessage(
     chatId: number,
     text: string,
-    extra?: ExtraReplyMessage
+    extra?: ExtraReplyMessage,
+    avoidPings = true
   ): Promise<Message.TextMessage> {
-    if (extra && "parseMode" in extra && extra.parseMode === "Markdown") {
+    if (extra && "parseMode" in extra && extra.parseMode === "MarkdownV2") {
       text = this.formatterService.escapeMarkdown(text);
+    }
+
+    if (avoidPings) {
+      text = this.formatterService.escapeHandles(text);
     }
 
     const message = await this.bot.telegram.sendMessage(chatId, text, {
       ...extra,
+      parse_mode: extra?.parse_mode ?? "Markdown",
+      link_preview_options: {
+        is_disabled: true,
+        // Following doesn't work so I left disabling it completely.
+        prefer_small_media: true,
+        prefer_large_media: false,
+        ...extra?.link_preview_options,
+      },
     });
 
     this.recordOwnMessage(
@@ -66,6 +107,67 @@ export class MessageService {
     return message;
   }
 
+  /**
+   * @todo: [CRIT] Vibe coded, re-read and test properly.
+   * @param text
+   * @param parseMode
+   */
+  public splitMessage(
+    text: string,
+    parseMode: ParseMode = "Markdown"
+  ): string[] {
+    if (text.length <= MessageService.TELEGRAM_MAX_MESSAGE_LENGTH) {
+      return [text];
+    }
+
+    const segments: string[] = [];
+    let remainingText = text;
+
+    while (remainingText.length > MessageService.TELEGRAM_MAX_MESSAGE_LENGTH) {
+      let splitIndex = -1;
+
+      for (const symbol of MessageService.MESSAGE_BREAK_SYMBOLS) {
+        const index = remainingText.lastIndexOf(
+          symbol,
+          MessageService.TELEGRAM_MAX_MESSAGE_LENGTH
+        );
+
+        if (index !== -1) {
+          splitIndex = index + symbol.length;
+          break;
+        }
+      }
+
+      if (splitIndex === -1) {
+        splitIndex = MessageService.TELEGRAM_MAX_MESSAGE_LENGTH;
+      }
+
+      let segment = remainingText.slice(0, splitIndex).trim();
+
+      if (parseMode === "Markdown") {
+        segment = this.formatterService.escapeMarkdown(segment);
+      } else if (parseMode === "MarkdownV2") {
+        //segment = this.formatterService.escapeMarkdownV2(segment);
+      }
+
+      segments.push(segment);
+      remainingText = remainingText.slice(splitIndex).trim();
+    }
+
+    if (remainingText.length > 0) {
+      let segment = remainingText;
+
+      if (parseMode === "Markdown") {
+        segment = this.formatterService.escapeMarkdown(segment);
+      } else if (parseMode === "MarkdownV2") {
+        //segment = this.formatterService.escapeMarkdownV2(segment);
+      }
+
+      segments.push(segment);
+    }
+
+    return segments;
+  }
 
   public async getTargetUserFromMessage(
     context: Context<Update.MessageUpdate>
@@ -175,7 +277,7 @@ export class MessageService {
 
   public async recordMessage(
     context: Context<Update.MessageUpdate>
-  ): Promise<HydratedMessageDocument | void> {
+  ): Promise<MessageDocument | void> {
     if (!context.message || !context.text) {
       return;
     }
@@ -186,6 +288,7 @@ export class MessageService {
       userId: context.message.from.id,
       text: context.text,
       date: new Date(context.message.date * 1000),
+      conversationIds: null,
     };
 
     if (
@@ -218,7 +321,7 @@ export class MessageService {
    */
   public async recordHiddenMessage(
     context: Context<Update.MessageUpdate>
-  ): Promise<HydratedMessageDocument | void> {
+  ): Promise<MessageDocument | void> {
     if (!context.message) {
       return;
     }
@@ -227,8 +330,9 @@ export class MessageService {
       chatId: context.chat.id,
       messageId: context.message.message_id,
       userId: context.message.from.id,
-      text: "[Hidden by user preference]",
+      text: MessageService.HIDDEN_MESSAGE_TEXT,
       date: new Date(context.message.date * 1000),
+      conversationIds: null,
     };
 
     if (
@@ -258,13 +362,14 @@ export class MessageService {
     text: string,
     replyToMessageId: number | null,
     date: number
-  ): Promise<HydratedMessageDocument | void> {
+  ): Promise<MessageDocument | void> {
     const message: MessageEntity = {
       chatId: chatId,
       messageId: messageId,
       userId: this.configService.botId,
       text: text,
       date: new Date(date * 1000),
+      conversationIds: null,
     };
 
     if (replyToMessageId) {
@@ -279,7 +384,7 @@ export class MessageService {
   public async getLatestMessages(
     chatId: number,
     limit: number
-  ): Promise<MessageEntity[]> {
+  ): Promise<Array<MessageDocument>> {
     return this.messageEntityModel
       .find({ chatId: chatId })
       .sort({ date: -1 })
@@ -287,10 +392,63 @@ export class MessageService {
       .exec();
   }
 
+  public async getOldestUnprocessedMessages(
+    chatId: number,
+    limit: number
+  ): Promise<Array<MessageDocument>> {
+    const messages = await this.messageEntityModel
+      .find({
+        chatId: chatId,
+        conversationIds: null,
+        date: {
+          $lt: new Date(
+            Date.now() - MessageService.CONVERSATION_SUMMARIZATION_WINDOW_MS
+          ),
+        },
+      })
+      .sort({ date: 1 })
+      .limit(limit)
+      .exec();
+
+    if (messages.length < MessageService.MESSAGE_SUMMARIZATION_THRESHOLD) {
+      return [];
+    }
+
+    return messages;
+  }
+
+  public async addConversationIdToMessages(
+    chatId: number,
+    messageIds: Array<number>,
+    conversationId: number
+  ): Promise<number> {
+    const result = await this.messageEntityModel
+      .updateMany({ chatId: chatId, messageId: { $in: messageIds } }, [
+        {
+          $set: {
+            conversationIds: {
+              $cond: {
+                if: { $isArray: "$conversationIds" },
+                then: { $concatArrays: ["$conversationIds", [conversationId]] },
+                else: [conversationId],
+              },
+            },
+          },
+        },
+      ])
+      .exec();
+
+    this.logger.log(
+      `Updated ${result.modifiedCount} messages in chat ${chatId} with conversation ID ${conversationId}`
+    );
+
+    return result.modifiedCount;
+  }
+
   public async getMessageChain(
     chatId: number,
     messageId: number
-  ): Promise<MessageEntity[]> {
+  ): Promise<Array<MessageDocument>> {
     const pipeline = [
       {
         $match: {

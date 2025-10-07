@@ -2,7 +2,10 @@ import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import {
   PersonThoughtEntity,
   PersonThoughtSchema,
-} from "@character/entity/person/thought.entity";
+} from "@roleplay/entity/person/thought.entity";
+import { HydratedDocument } from "mongoose";
+
+export type PersonDocument = HydratedDocument<PersonEntity>;
 
 /**
  * Person is related to User, but contains information about the person
@@ -35,6 +38,9 @@ export class PersonEntity {
    */
   @Prop({ default: 0 })
   knowledge: number;
+
+  @Prop({ default: 0 })
+  interactionsCount: number;
 
   /**
    * Rimworld-like list of thoughts depending on actions and events

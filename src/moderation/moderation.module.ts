@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 import { ModerationController } from "./controller/moderation.controller";
 import { ModerationService } from "./service/moderation.service";
@@ -10,7 +10,7 @@ import { BanSchema } from "./entity/ban.entity";
 import { WarnSchema } from "./entity/warn.entity";
 import { LanguageWarnSchema } from "./entity/language-warn.entity";
 import { CoreModule } from "@core/core.module";
-import { CharacterModule } from "@character/character.module";
+import { RoleplayModule } from "@roleplay/roleplay.module";
 
 @Module({
   imports: [
@@ -20,7 +20,7 @@ import { CharacterModule } from "@character/character.module";
       { name: "language_warn", schema: LanguageWarnSchema },
     ]),
     CoreModule,
-    CharacterModule,
+    forwardRef(() => RoleplayModule),
   ],
   providers: [
     ModerationController,

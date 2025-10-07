@@ -2,9 +2,10 @@ import { Module } from "@nestjs/common";
 import { ScheduleModule } from "@nestjs/schedule";
 import { MongooseModule } from "@nestjs/mongoose";
 import { TelegrafModule } from "nestjs-telegraf";
-import { ModerationModule } from "./moderation/moderation.module";
-import { CharacterModule } from "./character/character.module";
-import { CoreModule } from "./core/core.module";
+import { CoreModule } from "@core/core.module";
+import { ModerationModule } from "@moderation/moderation.module";
+import { GenAiModule } from "@genai/genai.module";
+import { RoleplayModule } from "@roleplay/roleplay.module";
 import { ClankerBotName } from "./app.constants";
 
 @Module({
@@ -15,7 +16,7 @@ import { ClankerBotName } from "./app.constants";
       botName: ClankerBotName,
       useFactory: () => ({
         token: process.env.TELEGRAM_BOT_TOKEN,
-        include: [ModerationModule, CharacterModule],
+        include: [ModerationModule, RoleplayModule],
         launchOptions: {
           allowedUpdates: [
             "message",
@@ -34,7 +35,8 @@ import { ClankerBotName } from "./app.constants";
     }),
     CoreModule,
     ModerationModule,
-    CharacterModule,
+    GenAiModule,
+    RoleplayModule,
   ],
 })
 export class AppModule {}
