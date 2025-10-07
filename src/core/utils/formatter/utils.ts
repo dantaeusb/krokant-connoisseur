@@ -21,7 +21,7 @@ export const wrap = (string: string, ...wrappers: string[]): string => {
 };
 
 export const escapeText = (text: string) =>
-  text.replace(/([\\_*\[\]()~`>#+-=|{}.!])/g, "\\$1");
+  text.replace(/([\\_*\[\]()~`>#+\-=|{}.!])/g, "\\$1");
 
 export const escapeCode = (text: string) =>
   text.replace(/\\/g, "\\\\").replace(/`/g, "\\`");

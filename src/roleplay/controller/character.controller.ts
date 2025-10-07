@@ -174,7 +174,6 @@ export class CharacterController {
 
     void this.messageService
       .sendMessage(context.chat.id, response, {
-        parse_mode: "Markdown",
         reply_parameters: {
           chat_id: context.chat.id,
           message_id: message.message_id,

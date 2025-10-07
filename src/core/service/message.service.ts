@@ -96,24 +96,24 @@ export class MessageService {
         },
       });
 
-      this.recordOwnMessage(
-        chatId,
-        message.message_id,
-        splitText,
-        message.reply_to_message?.message_id || null,
-        message.date
-      ).catch((error) => {
-        this.logger.error("Failed to record bot message:", error);
-      });
-
       lastMessage = message;
     }
+
+    // @todo: [MED] Record real messages, without formatting escapes.
+    this.recordOwnMessage(
+      chatId,
+      lastMessage.message_id,
+      text,
+      lastMessage.reply_to_message?.message_id || null,
+      lastMessage.date
+    ).catch((error) => {
+      this.logger.error("Failed to record bot message:", error);
+    });
 
     return lastMessage;
   }
 
   /**
-   * @todo: [CRIT] Vibe coded, re-read and test properly.
    * @param text
    * @param parseMode
    */

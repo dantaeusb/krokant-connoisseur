@@ -15,4 +15,3 @@ export class CounterEntity {
 }
 
 export const CounterEntitySchema = SchemaFactory.createForClass(CounterEntity);
-CounterEntitySchema.index({ name: 1 }, { unique: true });

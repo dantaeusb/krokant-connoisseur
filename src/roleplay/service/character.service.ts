@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@core/service/config.service";
-import { UserDocument, UserEntity } from "@core/entity/user.entity";
+import { UserDocument } from "@core/entity/user.entity";
 import { MessageService } from "@core/service/message.service";
 import { Content } from "@google/genai";
 import { MessageDocument } from "@core/entity/message.entity";
@@ -111,8 +111,20 @@ export class CharacterService {
 
     promptList.push({
       role: "user",
-      parts: [{ text: `Reply to following message: ${text}` }],
+      parts: [{ text: `Reply to following message:\n` }],
     });
+
+    promptList.push({
+      role: "user",
+      parts: [
+        {
+          text,
+        },
+      ],
+    });
+
+    this.logger.debug(promptList.slice(0, 15));
+    this.logger.debug(promptList.slice(-50));
 
     const candidate = this.needGoodModel(text)
       ? await this.geminiService.good(
@@ -259,28 +271,9 @@ export class CharacterService {
 
   private chainToPrompt(
     chain: Array<MessageDocumentWithChain>,
-    participants: Array<UserEntity>
+    participants: Array<UserDocument>
   ): Array<Content> {
-    const botId = this.configService.botId;
-
-    return chain
-      .map((message) => {
-        const isModel = message.userId === botId;
-        const user = participants.find((u) => u.userId === message.userId);
-        let prefix = isModel
-          ? ""
-          : `[${this.userService.getSafeUniqueIdentifier(user)}]`;
-
-        if (message.isInChain) {
-          prefix = `> ${prefix}`;
-        }
-
-        return {
-          role: isModel ? "model" : "user",
-          parts: [{ text: `${prefix} ${message.text}` }],
-        };
-      })
-      .reverse();
+    return this.promptService.getPromptFromMessages(chain.reverse(), participants);
   }
 
   private async fallback(): Promise<string> {

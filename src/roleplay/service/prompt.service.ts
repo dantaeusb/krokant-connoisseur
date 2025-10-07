@@ -10,6 +10,10 @@ import { ModerationService } from "@moderation/service/moderation.service";
 import { ConversationDocument } from "../entity/conversation.entity";
 import { PersonService } from "./person.service";
 
+export type MessageDocumentWithChain = MessageDocument & {
+  isInChain?: boolean;
+};
+
 @Injectable()
 export class PromptService {
   private logger: Logger = new Logger("Roleplay/PromptService");
@@ -318,7 +322,7 @@ export class PromptService {
   }
 
   public getPromptFromMessages(
-    messages: Array<MessageDocument>,
+    messages: Array<MessageDocumentWithChain>,
     participants: Array<UserDocument>,
     separateBotResponses = true,
     withMessageIds = false
@@ -345,7 +349,7 @@ export class PromptService {
     );
 
     const contents: Array<Content> = [];
-    let lastGroup: Array<MessageDocument> = [];
+    let lastGroup: Array<MessageDocumentWithChain> = [];
 
     for (const message of messages) {
       if (message.userId === this.configService.botId) {
@@ -373,7 +377,7 @@ export class PromptService {
                 message,
                 botUser,
                 null,
-                false,
+                message.isInChain || false,
                 withMessageIds
               ),
             },
@@ -403,7 +407,7 @@ export class PromptService {
   }
 
   public formatMessageGroup(
-    messages: Array<MessageDocument>,
+    messages: Array<MessageDocumentWithChain>,
     participants: Array<UserDocument>,
     withMessageIds = false
   ): string {
@@ -430,6 +434,7 @@ export class PromptService {
           message,
           user,
           responseToUser,
+          message.isInChain || false,
           withMessageIds
         )}${message.text}\n\n`;
       }
@@ -447,13 +452,13 @@ export class PromptService {
     isInThread = false,
     withMessageId = false
   ): string {
-    let text = "";
-
-    if (isInThread) {
-      text += "> ";
-    }
-
-    text += this.getMessageHeader(message, user, responseToUser, withMessageId);
+    let text = this.getMessageHeader(
+      message,
+      user,
+      responseToUser,
+      isInThread,
+      withMessageId
+    );
     text += message.text;
 
     return text;
@@ -474,9 +479,10 @@ export class PromptService {
     message: MessageDocument,
     user?: UserDocument,
     responseToUser?: UserDocument,
+    isInThread = false,
     withMessageId = false
   ): string {
-    let text = "";
+    const parts: Array<string> = [];
     let userHandle = "[Unknown]";
 
     if (!user) {
@@ -488,20 +494,24 @@ export class PromptService {
     }
 
     if (withMessageId) {
-      text += `#${message.messageId} `;
+      parts.push(`#${message.messageId}`);
     }
 
-    text += userHandle;
+    if (isInThread) {
+      parts.push("Current thread");
+    }
+
+    parts.push(userHandle);
 
     if (responseToUser) {
-      text += ` to ${this.wrapUserHandle(responseToUser)}`;
+      parts.push(`to ${this.wrapUserHandle(responseToUser)}`);
     }
 
     const timeAgo = this.formatterService.formatRelativeTime(message.createdAt);
 
-    text += ` (${timeAgo}):\n`;
+    parts.push(`(${timeAgo})`);
 
-    return text;
+    return parts.join(" ") + ":\n";
   }
 
   public wrapUserHandle(
