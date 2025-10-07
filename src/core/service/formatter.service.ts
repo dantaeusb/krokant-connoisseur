@@ -1,5 +1,9 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { unified } from "unified";
+import remarkParse from "remark-parse";
+import remarkStringify from "remark-stringify";
 import { REACTION_CONSTANTS } from "@core/constants/reaction.constants";
+import { getHandlers } from "@core/utils/formatter/handlers";
 
 @Injectable()
 export class FormatterService {
@@ -10,10 +14,24 @@ export class FormatterService {
   private readonly formatter = new Intl.RelativeTimeFormat("en", {
     numeric: "auto",
   });
+  private readonly remarkProcessor = unified()
+    .use(remarkParse)
+    .use(remarkStringify, {
+      bullet: "*",
+      bulletOrdered: ".",
+      bulletOther: "+",
+      tightDefinitions: true,
+      listItemIndent: "one",
+      // Should add references, but it's unlikely we'll need that – and that will require
+      // us to re-create the processor every time
+      handlers: getHandlers(),
+    });
 
   public escapeMarkdown(text: string): string {
-    text.replace('\*\*', '\*');
-    return text.replace(/([#+=|{}])/gm, "\\$1");
+    //text = text.replace(/\*(.+?)\*/g, "_$1_");
+    //text = text.replace(/\*\*/gs, "*");
+    const escapedFile = this.remarkProcessor.processSync(text);
+    return escapedFile.toString().trim();
   }
 
   public escapeHandles(text: string): string {

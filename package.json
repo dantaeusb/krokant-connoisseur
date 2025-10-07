@@ -26,12 +26,18 @@
     "dotenv": "^17.2.2",
     "emoji-regex": "^10.5.0",
     "javascript-time-ago": "~2.3.13",
+    "mdast-util-to-markdown": "^2.1.2",
     "mongoose": "^8.18.1",
     "nestjs-telegraf": "^2.9.1",
     "node-cron": "^4.2.1",
-    "redis": "^5.8.2"
+    "redis": "^5.8.2",
+    "remark": "^15.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-stringify": "^11.0.0",
+    "unified": "^11.0.5"
   },
   "devDependencies": {
+    "@types/mdast": "^4.0.4",
     "@types/node": "^24.3.1",
     "@types/node-cron": "^3.0.11",
     "@types/node-telegram-bot-api": "^0.64.10",

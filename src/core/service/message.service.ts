@@ -74,37 +74,42 @@ export class MessageService {
     extra?: ExtraReplyMessage,
     avoidPings = true
   ): Promise<Message.TextMessage> {
-    if (extra && "parseMode" in extra && extra.parseMode === "MarkdownV2") {
-      text = this.formatterService.escapeMarkdown(text);
-    }
-
     if (avoidPings) {
       text = this.formatterService.escapeHandles(text);
     }
 
-    const message = await this.bot.telegram.sendMessage(chatId, text, {
-      ...extra,
-      parse_mode: extra?.parse_mode ?? "Markdown",
-      link_preview_options: {
-        is_disabled: true,
-        // Following doesn't work so I left disabling it completely.
-        prefer_small_media: true,
-        prefer_large_media: false,
-        ...extra?.link_preview_options,
-      },
-    });
+    const splitTexts = await this.splitAndEscapeMessage(text);
+    let lastMessage: Message.TextMessage | null = null;
 
-    this.recordOwnMessage(
-      chatId,
-      message.message_id,
-      text,
-      message.reply_to_message?.message_id || null,
-      message.date
-    ).catch((error) => {
-      this.logger.error("Failed to record bot message:", error);
-    });
+    for (const splitText of splitTexts) {
+      this.logger.debug(splitText);
 
-    return message;
+      const message = await this.bot.telegram.sendMessage(chatId, splitText, {
+        ...extra,
+        parse_mode: extra?.parse_mode ?? "MarkdownV2",
+        link_preview_options: {
+          is_disabled: true,
+          // Following doesn't work so I left disabling it completely.
+          prefer_small_media: true,
+          prefer_large_media: false,
+          ...extra?.link_preview_options,
+        },
+      });
+
+      this.recordOwnMessage(
+        chatId,
+        message.message_id,
+        splitText,
+        message.reply_to_message?.message_id || null,
+        message.date
+      ).catch((error) => {
+        this.logger.error("Failed to record bot message:", error);
+      });
+
+      lastMessage = message;
+    }
+
+    return lastMessage;
   }
 
   /**
@@ -112,10 +117,7 @@ export class MessageService {
    * @param text
    * @param parseMode
    */
-  public splitMessage(
-    text: string,
-    parseMode: ParseMode = "Markdown"
-  ): string[] {
+  public splitAndEscapeMessage(text: string): Array<string> {
     if (text.length <= MessageService.TELEGRAM_MAX_MESSAGE_LENGTH) {
       return [text];
     }
@@ -143,12 +145,7 @@ export class MessageService {
       }
 
       let segment = remainingText.slice(0, splitIndex).trim();
-
-      if (parseMode === "Markdown") {
-        segment = this.formatterService.escapeMarkdown(segment);
-      } else if (parseMode === "MarkdownV2") {
-        //segment = this.formatterService.escapeMarkdownV2(segment);
-      }
+      segment = this.formatterService.escapeMarkdown(segment);
 
       segments.push(segment);
       remainingText = remainingText.slice(splitIndex).trim();
@@ -156,12 +153,7 @@ export class MessageService {
 
     if (remainingText.length > 0) {
       let segment = remainingText;
-
-      if (parseMode === "Markdown") {
-        segment = this.formatterService.escapeMarkdown(segment);
-      } else if (parseMode === "MarkdownV2") {
-        //segment = this.formatterService.escapeMarkdownV2(segment);
-      }
+      segment = this.formatterService.escapeMarkdown(segment);
 
       segments.push(segment);
     }
