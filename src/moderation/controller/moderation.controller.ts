@@ -60,13 +60,13 @@ export class ModerationController {
           },
           {
             forModule: "Moderation",
-            command: "ban",
-            description: "Ban a user",
+            command: "mute",
+            description: "Mute a user",
           },
           {
             forModule: "Moderation",
-            command: "unban",
-            description: "Unban a user",
+            command: "unmute",
+            description: "Unmute a user",
           },
           {
             forModule: "Moderation",
@@ -131,7 +131,7 @@ export class ModerationController {
     if (result === WarnResult.WARNED) {
       void context.react("👌");
       await this.reply(context, message, `${name} has been warned.`);
-    } else if (result === WarnResult.BANNED) {
+    } else if (result === WarnResult.MUTED) {
       void context.react("👌");
       await this.reply(
         context,
@@ -180,12 +180,13 @@ export class ModerationController {
   }
 
   @Command("ban")
+  @Command("mute")
   @UseGuards(AdminGuard)
   async banCommand(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Message() message: TelegramUpdate.MessageUpdate["message"]
   ): Promise<void> {
-    this.logger.debug("Handling /ban command");
+    this.logger.debug("Handling /ban or /mute command");
 
     const targetUserId = await this.messageService.getTargetUserFromMessage(
       context
@@ -210,19 +211,20 @@ export class ModerationController {
 
     const name = targetUser?.name || "User";
 
-    if (result === BanResult.BANNED) {
+    if (result === BanResult.MUTED) {
       void context.react("👌");
-      await this.reply(context, message, `${name} has been banned.`);
+      await this.reply(context, message, `${name} has been muted.`);
     } else if (result === BanResult.PERMA_BANNED) {
       void context.react("👌");
       await this.reply(context, message, `${name} has been banned forever.`);
     } else {
       void context.react("🤷‍♂");
-      await this.reply(context, message, `Failed to ban ${name}.`);
+      await this.reply(context, message, `Failed to mute ${name}.`);
     }
   }
 
   @Command("unban")
+  @Command("unmute")
   @UseGuards(AdminGuard)
   async unbanCommand(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
@@ -347,7 +349,10 @@ export class ModerationController {
           context.from.id
         );
 
-        void context.react("👀");
+        void context.react("👀").catch(() => {
+          this.logger.warn("Failed to react to translated message");
+        });
+
         this.logger.debug(`Language warning result: ${warnResult}`);
 
         const user = await this.userService.getUser(
@@ -370,7 +375,13 @@ export class ModerationController {
             message,
             `${name} you have been warned for using a non-English language. Please use English only.`
           );
-        } else if (warnResult === LanguageWarnResult.BANNED) {
+        } else if (warnResult === LanguageWarnResult.LAST_SOFT_WARNED) {
+          await this.reply(
+            context,
+            message,
+            `${name} this is your last warning for using a non-English language. Further violations will lead to a mute. Please use English only.`
+          );
+        } else if (warnResult === LanguageWarnResult.MUTED) {
           await this.reply(
             context,
             message,
@@ -423,6 +434,7 @@ export class ModerationController {
       const result = await this.moderationService.warnUser(
         context.chat.id,
         context.from.id,
+        undefined,
         "For not learning which words not to use"
       );
 
@@ -440,7 +452,7 @@ export class ModerationController {
           message,
           `${name} has been warned for using profanity.`
         );
-      } else if (result === WarnResult.BANNED) {
+      } else if (result === WarnResult.MUTED) {
         await this.reply(
           context,
           message,

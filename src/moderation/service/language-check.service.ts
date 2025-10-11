@@ -116,10 +116,11 @@ export class LanguageCheckService {
       const result = await this.moderationService.warnUser(
         chatId,
         userId,
+        1,
         "Use English."
       );
 
-      if (result === WarnResult.BANNED || result === WarnResult.PERMA_BANNED) {
+      if (result === WarnResult.MUTED || result === WarnResult.PERMA_BANNED) {
         await this.languageWarnEntityModel.updateOne(
           { chatId: chatId, userId: userId },
           { count: 0 }
@@ -129,7 +130,7 @@ export class LanguageCheckService {
           return LanguageWarnResult.PERMA_BANNED;
         }
 
-        return LanguageWarnResult.BANNED;
+        return LanguageWarnResult.MUTED;
       } else if (result === WarnResult.WARNED) {
         await this.languageWarnEntityModel.updateOne(
           { chatId: chatId, userId: userId },
@@ -139,6 +140,15 @@ export class LanguageCheckService {
         return LanguageWarnResult.WARNED;
       } else {
         return LanguageWarnResult.NONE;
+      }
+    } else if (
+      languageWarning.count ===
+      LanguageCheckService.LANGUAGE_SOFT_WARNS_TO_WARN - 1
+    ) {
+      const warns = await this.moderationService.getWarns(chatId, userId);
+
+      if (warns.count >= ModerationService.WARN_LIMIT - 1) {
+        return LanguageWarnResult.LAST_SOFT_WARNED;
       }
     }
 
@@ -168,6 +178,7 @@ export enum LanguageWarnResult {
   FIRST_WARNED = "first_warned",
   SOFT_WARNED = "soft_warned",
   WARNED = "warned",
-  BANNED = "banned",
+  LAST_SOFT_WARNED = "last_soft_warned",
+  MUTED = "banned",
   PERMA_BANNED = "perma_banned",
 }

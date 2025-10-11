@@ -34,13 +34,17 @@ export class ModerationService {
    *
    */
 
-  /*bot.telegram.sendSticker(
-    chatId,
-    "CAACAgIAAxkBAAMtaMCj9huqEnlcLNC0Q-AlpGt9XwIAAj5tAALGK4BLkonz2kRJC4c2BA"
-  );*/
+  /**
+   *
+   * @param chatId ID of the chat to ban the user in
+   * @param userId ID of the user to ban
+   * @param limitedSeverity do not increase severity beyond this value
+   * @param reason reason for the warn
+   */
   public async warnUser(
     chatId: number,
     userId: number,
+    limitedSeverity?: number,
     reason?: string
   ): Promise<WarnResult> {
     const warning = await this.warnEntityModel
@@ -64,7 +68,9 @@ export class ModerationService {
         chatId,
         userId,
         false,
-        reason ?? "Reached warning limit"
+        reason ?? "Reached warning limit",
+        limitedSeverity,
+        undefined
       );
 
       if (result === BanResult.NONE) {
@@ -75,7 +81,7 @@ export class ModerationService {
         return WarnResult.PERMA_BANNED;
       }
 
-      return WarnResult.BANNED;
+      return WarnResult.MUTED;
     }
 
     return WarnResult.WARNED;
@@ -121,38 +127,27 @@ export class ModerationService {
   }
 
   /**
-   * Ban section
+   * Mute/ban section
    */
 
-  public async muteUser(chatId: number, userId: number): Promise<boolean> {
-    try {
-      await this.bot.telegram.restrictChatMember(chatId, userId, {
-        permissions: {
-          can_send_messages: false,
-          can_send_polls: false,
-          can_send_other_messages: false,
-          can_add_web_page_previews: false,
-          can_change_info: false,
-          can_invite_users: false,
-          can_pin_messages: false,
-        },
-        // until_date: banTime > 0 ? Math.floor(banTime / 1000) : undefined,
-      });
-      return true;
-    } catch (error) {
-      this.logger.error(
-        `Failed to mute user ${userId} in chat ${chatId}`,
-        error
-      );
-      return false;
-    }
-  }
-
+  /**
+   * Bans and mutes use the same entries, bans happen only if messages are revoked
+   * or if severity is high enough. In case of a ban, all warnings are reset.
+   *
+   * @param chatId ID of the chat to ban the user in
+   * @param userId ID of the user to ban
+   * @param revoke if true, all messages will be deleted
+   * @param reason reason for the mute
+   * @param limitedSeverity do not increase severity beyond this value
+   * @param forceSeverity force set severity to this value
+   */
   public async banUser(
     chatId: number,
     userId: number,
     revoke = false,
-    reason?: string
+    reason?: string,
+    limitedSeverity?: number,
+    forceSeverity?: number
   ): Promise<BanResult> {
     const banEntity = await this.banEntityModel
       .findOneAndUpdate(
@@ -218,7 +213,11 @@ export class ModerationService {
     await this.resetWarns(chatId, userId);
 
     if (banEndTime > 0) {
-      return BanResult.BANNED;
+      if (revoke) {
+        return BanResult.BANNED;
+      }
+
+      return BanResult.MUTED;
     } else {
       return BanResult.PERMA_BANNED;
     }
@@ -339,12 +338,13 @@ export class ModerationService {
 export enum WarnResult {
   NONE = "NONE",
   WARNED = "WARNED",
-  BANNED = "BANNED",
+  MUTED = "MUTED",
   PERMA_BANNED = "PERMA_BANNED",
 }
 
 export enum BanResult {
   NONE = "NONE",
+  MUTED = "MUTED",
   BANNED = "BANNED",
   PERMA_BANNED = "PERMA_BANNED",
 }
