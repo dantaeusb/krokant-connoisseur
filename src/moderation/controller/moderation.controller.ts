@@ -333,6 +333,9 @@ export class ModerationController {
                 },
               });
             }
+          })
+          .catch((error) => {
+            this.logger.error("Failed to translate message", error);
           });
       }
 
