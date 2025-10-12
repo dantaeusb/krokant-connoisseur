@@ -223,7 +223,7 @@ export class CharacterService {
       Array<MessageDocument>,
       Array<MessageDocumentWithChain>
     ] = await Promise.all([
-      this.messageService.getLatestMessages(chatId, 800),
+      this.messageService.getLatestMessages(chatId, 500),
       this.messageService.getMessageChain(chatId, messageId),
     ]);
 
