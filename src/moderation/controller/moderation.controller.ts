@@ -296,109 +296,123 @@ export class ModerationController {
       | Context<TelegramUpdate.EditedMessageUpdate>,
     @Next() next: () => Promise<void>
   ): Promise<void> {
-    this.logger.debug("Handling message for language check");
+    try {
+      this.logger.debug("Handling message for language check");
 
-    const message:
-      | TelegramUpdate.MessageUpdate["message"]
-      | TelegramUpdate.EditedMessageUpdate["edited_message"] =
-      "message" in context.update
-        ? context.update.message
-        : context.update.edited_message;
+      const message:
+        | TelegramUpdate.MessageUpdate["message"]
+        | TelegramUpdate.EditedMessageUpdate["edited_message"] =
+        "message" in context.update
+          ? context.update.message
+          : context.update.edited_message;
 
-    const isEdited = "edited_message" in context.update;
+      const isEdited = "edited_message" in context.update;
 
-    if (!context.text || context.from.is_bot) {
-      return next();
-    }
+      if (!context.text || context.from.is_bot) {
+        return next();
+      }
 
-    let isChannelComment = false;
+      let isChannelComment = false;
 
-    if (message && "reply_to_message" in message) {
-      isChannelComment = message.reply_to_message.from.id === 777000;
-    }
-
-    if (
-      this.languageCheckService.containsNonLanguageSymbols(context.text, ["en"])
-    ) {
-      if (!isEdited) {
-        this.translationService
-          .translateText(context.text)
-          .then((translatedText) => {
-            if (translatedText) {
-              this.messageService.sendMessage(context.chat.id, translatedText, {
-                reply_parameters: {
-                  message_id: message.message_id,
-                  chat_id: context.chat.id,
-                  allow_sending_without_reply: false,
-                },
-              });
-            }
-          })
-          .catch((error) => {
-            this.logger.error("Failed to translate message", error);
-          });
+      if (message && "reply_to_message" in message) {
+        isChannelComment = message.reply_to_message.from.id === 777000;
       }
 
       if (
-        !isChannelComment ||
-        !this.languageCheckService.containsNonLanguageSymbols(context.text, [
+        this.languageCheckService.containsNonLanguageSymbols(context.text, [
           "en",
-          "ru",
-          "pt",
         ])
       ) {
-        const warnResult = await this.languageCheckService.warnUserForLanguage(
-          context.chat.id,
-          context.from.id
-        );
+        if (!isEdited) {
+          this.translationService
+            .translateText(context.text)
+            .then((translatedText) => {
+              if (translatedText) {
+                this.messageService
+                  .sendMessage(context.chat.id, translatedText, {
+                    reply_parameters: {
+                      message_id: message.message_id,
+                      chat_id: context.chat.id,
+                      allow_sending_without_reply: false,
+                    },
+                  })
+                  .catch((error) => {
+                    this.logger.error(
+                      "Failed to send translated message",
+                      error
+                    );
+                  });
+              }
+            })
+            .catch((error) => {
+              this.logger.error("Failed to translate message", error);
+            });
+        }
 
-        void context.react("👀").catch(() => {
-          this.logger.warn("Failed to react to translated message");
-        });
+        if (
+          !isChannelComment ||
+          !this.languageCheckService.containsNonLanguageSymbols(context.text, [
+            "en",
+            "ru",
+            "pt",
+          ])
+        ) {
+          const warnResult =
+            await this.languageCheckService.warnUserForLanguage(
+              context.chat.id,
+              context.from.id
+            );
 
-        this.logger.debug(`Language warning result: ${warnResult}`);
+          void context.react("👀").catch(() => {
+            this.logger.warn("Failed to react to translated message");
+          });
 
-        const user = await this.userService.getUser(
-          context.chat.id,
-          context.from.id,
-          context.from
-        );
+          this.logger.debug(`Language warning result: ${warnResult}`);
 
-        const name = user?.name || "User";
+          const user = await this.userService.getUser(
+            context.chat.id,
+            context.from.id,
+            context.from
+          );
 
-        if (warnResult === LanguageWarnResult.FIRST_WARNED) {
-          await this.reply(
-            context,
-            message,
-            `Please use English only, ${name}. This is your first warning. Further violations may lead to a ban.`
-          );
-        } else if (warnResult === LanguageWarnResult.WARNED) {
-          await this.reply(
-            context,
-            message,
-            `${name} you have been warned for using a non-English language. Please use English only.`
-          );
-        } else if (warnResult === LanguageWarnResult.LAST_SOFT_WARNED) {
-          await this.reply(
-            context,
-            message,
-            `${name} this is your last warning for using a non-English language. Further violations will lead to a mute. Please use English only.`
-          );
-        } else if (warnResult === LanguageWarnResult.MUTED) {
-          await this.reply(
-            context,
-            message,
-            `${name} you have been banned for repeated use of non-English language.`
-          );
-        } else if (warnResult === LanguageWarnResult.PERMA_BANNED) {
-          //@todo: better message
-          await this.reply(
-            context,
-            message,
-            `${name} you have been permanently banned for whatever you did before and repeated use of non-English language.`
-          );
+          const name = user?.name || "User";
+
+          if (warnResult === LanguageWarnResult.FIRST_WARNED) {
+            await this.reply(
+              context,
+              message,
+              `Please use English only, ${name}. This is your first warning. Further violations may lead to a ban.`
+            );
+          } else if (warnResult === LanguageWarnResult.WARNED) {
+            await this.reply(
+              context,
+              message,
+              `${name} you have been warned for using a non-English language. Please use English only.`
+            );
+          } else if (warnResult === LanguageWarnResult.LAST_SOFT_WARNED) {
+            await this.reply(
+              context,
+              message,
+              `${name} this is your last warning for using a non-English language. Further violations will lead to a mute. Please use English only.`
+            );
+          } else if (warnResult === LanguageWarnResult.MUTED) {
+            await this.reply(
+              context,
+              message,
+              `${name} you have been banned for repeated use of non-English language.`
+            );
+          } else if (warnResult === LanguageWarnResult.PERMA_BANNED) {
+            //@todo: better message
+            await this.reply(
+              context,
+              message,
+              `${name} you have been permanently banned for whatever you did before and repeated use of non-English language.`
+            );
+          }
         }
       }
+    } catch (error) {
+      this.logger.error("Error in messageLanguageCheck:", error);
     }
 
     return next();

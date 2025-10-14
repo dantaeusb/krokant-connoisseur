@@ -49,7 +49,7 @@ export class GeminiService {
   constructor() {
     this.googleGenAI = new GoogleGenAI({
       vertexai: true,
-      location: "europe-west9",
+      location: "europe-west4",
       project: process.env.GOOGLE_PROJECT_ID,
       googleAuthOptions: {
         keyFilename: "./gcp-key.json",
