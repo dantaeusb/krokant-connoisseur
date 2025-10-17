@@ -6,7 +6,7 @@ import {
   Update,
 } from "nestjs-telegraf";
 import { Logger } from "@nestjs/common";
-import { ClankerBotName } from "@/app.constants";
+import { BotName } from "@/app.constants";
 import { Context, Telegraf } from "telegraf";
 import { Update as TelegramUpdate } from "telegraf/types";
 
@@ -15,7 +15,7 @@ export class AskController {
   private readonly logger = new Logger("GenAi/AskController");
 
   constructor(
-    @InjectBot(ClankerBotName)
+    @InjectBot(BotName)
     private readonly bot: Telegraf<Context>
   ) {}
 

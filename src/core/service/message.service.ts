@@ -5,7 +5,7 @@ import { ParseMode, Message } from "@telegraf/types/message";
 import { InjectModel } from "@nestjs/mongoose";
 import { InjectBot } from "nestjs-telegraf";
 import { Model, pluralize } from "mongoose";
-import { ClankerBotName } from "@/app.constants";
+import { BotName } from "@/app.constants";
 import { MessageDocument, MessageEntity } from "@core/entity/message.entity";
 import { ConfigService } from "./config.service";
 import { UserService } from "./user.service";
@@ -51,7 +51,7 @@ export class MessageService {
   private readonly logger = new Logger("Core/MessageService");
 
   constructor(
-    @InjectBot(ClankerBotName)
+    @InjectBot(BotName)
     private readonly bot: Telegraf<Context>,
     @InjectModel(MessageEntity.COLLECTION_NAME)
     private messageEntityModel: Model<MessageEntity>,

@@ -29,13 +29,13 @@ export class UserEntity {
   name: string;
 
   @Prop({ type: Types.ObjectId, ref: "CharacterEntity" })
-  character: PersonEntity;
+  character?: PersonEntity;
 
   @Prop({ type: Types.ObjectId, ref: "WarnEntity" })
-  warn: WarnEntity;
+  warn?: WarnEntity;
 
   @Prop({ type: Types.ObjectId, ref: "BanEntity" })
-  ban: BanEntity;
+  ban?: BanEntity;
 }
 
 export const UserSchema = SchemaFactory.createForClass(UserEntity);

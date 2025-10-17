@@ -1,7 +1,7 @@
 import { Ctx, InjectBot, Message, Next, On, Update } from "nestjs-telegraf";
 import { Logger } from "@nestjs/common";
 import { Update as TelegramUpdate } from "telegraf/types";
-import { ClankerBotName } from "@/app.constants";
+import { BotName } from "@/app.constants";
 import { Context, Telegraf } from "telegraf";
 import { ConfigService } from "../service/config.service";
 import { UserService } from "../service/user.service";
@@ -12,7 +12,7 @@ export class LoggingController {
   private readonly logger = new Logger("Core/LoggingController");
 
   constructor(
-    @InjectBot(ClankerBotName)
+    @InjectBot(BotName)
     private readonly bot: Telegraf<Context>,
     private readonly configService: ConfigService,
     private readonly userService: UserService,

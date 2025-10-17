@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
-import { ConfigEntity, ConfigSchema } from "./entity/config.entity";
+import { ChatConfigEntity, ConfigSchema } from "./entity/chat-config.entity";
 import { CounterEntity, CounterEntitySchema } from "./entity/counter.entiy";
 import { UserEntity, UserSchema } from "./entity/user.entity";
 import { ConfigController } from "./controller/config.controller";
@@ -19,13 +19,14 @@ import { CounterService } from "./service/counter.service";
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: ConfigEntity.COLLECTION_NAME, schema: ConfigSchema },
+      { name: ChatConfigEntity.COLLECTION_NAME, schema: ConfigSchema },
       { name: CounterEntity.COLLECTION_NAME, schema: CounterEntitySchema },
       { name: UserEntity.COLLECTION_NAME, schema: UserSchema },
       { name: MessageEntity.COLLECTION_NAME, schema: MessageSchema },
     ]),
   ],
   providers: [
+    ConfigService,
     ConfigController,
     LoggingController,
     ToolsController,
@@ -34,7 +35,6 @@ import { CounterService } from "./service/counter.service";
     CommandsService,
     MessageService,
     UserService,
-    ConfigService,
     PingGroupService,
     FormatterService,
   ],

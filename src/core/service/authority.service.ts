@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectBot } from "nestjs-telegraf";
-import { ClankerBotName } from "@/app.constants";
+import { BotName } from "@/app.constants";
 import { Context, Telegraf } from "telegraf";
 
 @Injectable()
@@ -9,7 +9,7 @@ export class AuthorityService {
   private static readonly SUPER_ADMIN_IDS = [132524050];
 
   constructor(
-    @InjectBot(ClankerBotName) private readonly bot: Telegraf<Context>
+    @InjectBot(BotName) private readonly bot: Telegraf<Context>
   ) {}
 
   public async isAdmin(chatId: number, userId: number): Promise<boolean> {

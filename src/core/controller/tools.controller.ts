@@ -8,7 +8,7 @@ import {
   Update,
 } from "nestjs-telegraf";
 import { Logger, UseGuards } from "@nestjs/common";
-import { ClankerBotName } from "@/app.constants";
+import { BotName } from "@/app.constants";
 import { Context, Telegraf } from "telegraf";
 import { Update as TelegramUpdate } from "telegraf/types";
 import { AdminGuard } from "../guard/admin.guard";
@@ -24,7 +24,7 @@ export class ToolsController {
   private readonly logger = new Logger("Core/ToolsController");
 
   constructor(
-    @InjectBot(ClankerBotName)
+    @InjectBot(BotName)
     private readonly bot: Telegraf<Context>,
     private readonly commandsService: CommandsService,
     private readonly authorityService: AuthorityService,

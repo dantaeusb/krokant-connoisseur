@@ -1,6 +1,10 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { HydratedDocument, Types } from "mongoose";
+import { BanEventDocument, BanEventSchema } from "./ban/event.entity";
 
-@Schema()
+export type BanDocument = HydratedDocument<BanEntity>;
+
+@Schema({ timestamps: true })
 export class BanEntity {
   public static COLLECTION_NAME = "ban";
 
@@ -16,13 +20,13 @@ export class BanEntity {
   @Prop()
   severity: number;
 
-  @Prop()
-  reason: string;
+  @Prop([BanEventSchema])
+  events: Types.DocumentArray<BanEventDocument>;
 
   @Prop({ required: true })
   expiresAt: Date;
 
-  @Prop({ default: Date.now })
+  createdAt: Date;
   updatedAt: Date;
 }
 

@@ -2,8 +2,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { ConfigService } from "./config.service";
-import { ConfigEntity } from "../entity/config.entity";
-import { PingGroupEntity } from "../entity/ping-group.entity";
+import { ChatConfigEntity } from "../entity/chat-config.entity";
+import { PingGroupEntity } from "../entity/config/ping-group.entity";
 
 @Injectable()
 export class PingGroupService {
@@ -12,8 +12,8 @@ export class PingGroupService {
   private readonly logger = new Logger("Core/PingGroupService");
 
   constructor(
-    @InjectModel(ConfigEntity.COLLECTION_NAME)
-    private configModel: Model<ConfigEntity>,
+    @InjectModel(ChatConfigEntity.COLLECTION_NAME)
+    private configModel: Model<ChatConfigEntity>,
     private readonly configService: ConfigService
   ) {}
 

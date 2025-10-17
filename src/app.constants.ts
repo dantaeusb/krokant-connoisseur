@@ -1,1 +1,1 @@
-export const ClankerBotName = 'KrokantConnoisseurChatBot';
+export const BotName = 'KrokantConnoisseurChatBot';

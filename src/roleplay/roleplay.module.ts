@@ -14,6 +14,7 @@ import {
   ConversationEntity,
   ConversationEntitySchema,
 } from "@roleplay/entity/conversation.entity";
+import { AnswerStrategyService } from "@roleplay/service/answer-strategy.service";
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import {
     forwardRef(() => ModerationModule),
   ],
   providers: [
+    AnswerStrategyService,
     CharacterController,
     ConversationService,
     CharacterService,

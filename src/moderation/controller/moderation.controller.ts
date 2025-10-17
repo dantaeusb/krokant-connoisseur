@@ -15,7 +15,7 @@ import {
   WarnResult,
 } from "../service/moderation.service";
 import { Context, Telegraf } from "telegraf";
-import { ClankerBotName } from "@/app.constants";
+import { BotName } from "@/app.constants";
 import { AdminGuard } from "@core/guard/admin.guard";
 import { ProfanityCheckService } from "../service/profanity-check.service";
 import { CharacterService } from "@roleplay/service/character.service";
@@ -35,8 +35,6 @@ export class ModerationController {
   private readonly logger = new Logger("Moderation/ModerationController");
 
   constructor(
-    @InjectBot(ClankerBotName)
-    private readonly bot: Telegraf<Context>,
     private readonly commandsService: CommandsService,
     private readonly configService: ConfigService,
     private readonly moderationService: ModerationService,
@@ -47,7 +45,6 @@ export class ModerationController {
     private readonly messageService: MessageService,
     @Inject(forwardRef(() => CharacterService))
     private readonly characterService: CharacterService,
-    private readonly formatterService: FormatterService
   ) {
     Promise.all([
       this.commandsService.extendCommands(

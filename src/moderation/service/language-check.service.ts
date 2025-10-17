@@ -3,7 +3,7 @@ import { Cron } from "@nestjs/schedule";
 import { ModerationService, WarnResult } from "./moderation.service";
 import { Context, Telegraf } from "telegraf";
 import { InjectBot } from "nestjs-telegraf";
-import { ClankerBotName } from "@/app.constants";
+import { BotName } from "@/app.constants";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { LanguageWarnEntity } from "@moderation/entity/language-warn.entity";
@@ -40,7 +40,7 @@ export class LanguageCheckService {
   private languagePatterns: Record<string, RegExp> = {};
 
   constructor(
-    @InjectBot(ClankerBotName)
+    @InjectBot(BotName)
     private readonly bot: Telegraf<Context>,
     @InjectModel(LanguageWarnEntity.COLLECTION_NAME)
     private readonly languageWarnEntityModel: Model<LanguageWarnEntity>,

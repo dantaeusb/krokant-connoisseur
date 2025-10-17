@@ -4,9 +4,10 @@ import { Model } from "mongoose";
 import { WarnEntity } from "../entity/warn.entity";
 import { BanEntity } from "../entity/ban.entity";
 import { InjectBot } from "nestjs-telegraf";
-import { ClankerBotName } from "@/app.constants";
+import { BotName } from "@/app.constants";
 import { Context, Telegraf } from "telegraf";
 import { Cron } from "@nestjs/schedule";
+import { BanEventEntity } from "@moderation/entity/ban/event.entity";
 
 @Injectable()
 export class ModerationService {
@@ -21,7 +22,7 @@ export class ModerationService {
   private static BASE_BAN_DURATION_HOURS = 3;
 
   constructor(
-    @InjectBot(ClankerBotName) private readonly bot: Telegraf<Context>,
+    @InjectBot(BotName) private readonly bot: Telegraf<Context>,
     @InjectModel(WarnEntity.COLLECTION_NAME)
     private readonly warnEntityModel: Model<WarnEntity>,
     @InjectModel(BanEntity.COLLECTION_NAME)
@@ -153,18 +154,22 @@ export class ModerationService {
       .findOneAndUpdate(
         { chatId: chatId, userId: userId },
         {
-          $inc: {
-            severity: 1,
-          },
-          reason: reason,
-        },
-        {
           upsert: true,
           new: true,
           setDefaultsOnInsert: true,
         }
       )
       .exec();
+
+    const action = revoke ? "ban" : "mute";
+
+    if (forceSeverity) {
+      banEntity.severity = forceSeverity;
+    } else if (limitedSeverity) {
+      banEntity.severity = Math.min(banEntity.severity + 1, limitedSeverity);
+    } else {
+      banEntity.severity += 1;
+    }
 
     const banEndTime = this.calculateBanEndTime(banEntity);
 
@@ -180,7 +185,7 @@ export class ModerationService {
 
     try {
       if (banEndTime > 0) {
-        if (revoke) {
+        if (action === "ban") {
           await this.bot.telegram.banChatMember(chatId, userId, banEndTime, {
             revoke_messages: true,
           });
@@ -210,6 +215,14 @@ export class ModerationService {
       return BanResult.NONE;
     }
 
+    banEntity.events.push({
+      type: revoke ? "ban" : "mute",
+      reason: reason,
+      severity: banEntity.severity,
+      expiresAt: banEndTime > 0 ? new Date(banEndTime * 1000) : null,
+    } as BanEventEntity);
+
+    await banEntity.save();
     await this.resetWarns(chatId, userId);
 
     if (banEndTime > 0) {

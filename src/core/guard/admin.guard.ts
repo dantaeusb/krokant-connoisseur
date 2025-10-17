@@ -6,13 +6,13 @@ import {
 } from "nestjs-telegraf";
 import { Context } from "../interface/context.interface";
 import { AuthorityService } from "../service/authority.service";
-import { ClankerBotName } from "@/app.constants";
+import { BotName } from "@/app.constants";
 import { Telegraf } from "telegraf";
 
 @Injectable()
 export class AdminGuard implements CanActivate {
   constructor(
-    @InjectBot(ClankerBotName) private readonly bot: Telegraf<Context>,
+    @InjectBot(BotName) private readonly bot: Telegraf<Context>,
     private readonly authorityService: AuthorityService
   ) {}
 

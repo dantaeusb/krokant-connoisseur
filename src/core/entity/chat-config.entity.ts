@@ -1,27 +1,23 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import {
-  PingGroupEntity,
-  PingGroupSchema,
-} from "@core/entity/ping-group.entity";
+import { PingGroupDocument, PingGroupSchema } from "./config/ping-group.entity";
 import { HydratedDocument, Types } from "mongoose";
 import {
-  ProfanityFilterEntity,
+  ProfanityFilterDocument,
   ProfanityFilterSchema,
 } from "@moderation/entity/profanity-filter.entity";
+import {
+  AnswerStrategyDocument,
+  AnswerStrategySchema,
+} from "@roleplay/entity/answer-strategy.entity";
 
-export type ConfigDocument = HydratedDocument<
-  ConfigEntity,
-  {
-    pingGroups: Types.Subdocument<Types.ObjectId> & PingGroupEntity;
-  }
->;
+export type ChatConfigDocument = HydratedDocument<ChatConfigEntity>;
 
 /**
  * Chat config, effectively mongo just adds persistence to in-memory config.
  * Use `/reload` command to reload from DB if changes are made directly.
  */
 @Schema({ timestamps: true })
-export class ConfigEntity {
+export class ChatConfigEntity {
   public static COLLECTION_NAME = "config";
 
   @Prop({ required: true, index: true })
@@ -31,7 +27,7 @@ export class ConfigEntity {
    * Whether the bot should be more likely to respond to messages in the chat
    * and rephrase messages from commands.
    */
-  @Prop({ required: true, default: true })
+  @Prop({ required: true, default: false })
   yapping: boolean;
 
   /**
@@ -48,12 +44,20 @@ export class ConfigEntity {
       "and spark conversations in a group chat.\n" +
       "You will be provided with your roleplay prompt, chat information, participants information and " +
       "conversation context. Following that, you may be given the latest messages in chat and " +
-      "a message to respond or rephrase.\n" +
-      "Do not include message markers like [] or > in your responses.\n" +
+      "a message to react to according to the chosen strategy.\n" +
       "Try to address users by their nicknames or names if possible, avoid using " +
-      "handles or ID's unless the question better redirected to the person.\n",
+      "handles or ID's unless the question better redirected to the person.\n" +
+      "Keep conversational messages short, but give answers proper nuance. Avoid excessive formatting.",
   })
   characterSystemPrompt: string;
+
+  @Prop({
+    default:
+      "You are an expert at determining the best way to respond to messages in a group chat setting. " +
+      "Based on the given bot roleplay persona, context of the conversation and the content of the message, " +
+      "choose which would be the best strategy for the bot to respond from given options.",
+  })
+  answerStrategySystemPrompt: string;
 
   /**
    * This will be used as a prompt for the character actions,
@@ -85,13 +89,16 @@ export class ConfigEntity {
   canGoogle: boolean;
 
   @Prop([PingGroupSchema])
-  pingGroups: Array<PingGroupEntity>;
+  pingGroups: Types.DocumentArray<PingGroupDocument>;
 
   @Prop([ProfanityFilterSchema])
-  profanityFilters: Array<ProfanityFilterEntity>;
+  profanityFilters: Types.DocumentArray<ProfanityFilterDocument>;
+
+  @Prop([AnswerStrategySchema])
+  answerStrategies: Types.DocumentArray<AnswerStrategyDocument>;
 
   @Prop({ default: false })
   debugMode: boolean;
 }
 
-export const ConfigSchema = SchemaFactory.createForClass(ConfigEntity);
+export const ConfigSchema = SchemaFactory.createForClass(ChatConfigEntity);

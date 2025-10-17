@@ -6,14 +6,14 @@ import { CoreModule } from "@core/core.module";
 import { ModerationModule } from "@moderation/moderation.module";
 import { GenAiModule } from "@genai/genai.module";
 import { RoleplayModule } from "@roleplay/roleplay.module";
-import { ClankerBotName } from "./app.constants";
+import { BotName } from "./app.constants";
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
     MongooseModule.forRoot(process.env.MONGODB_URI),
     TelegrafModule.forRootAsync({
-      botName: ClankerBotName,
+      botName: BotName,
       useFactory: () => ({
         token: process.env.TELEGRAM_BOT_TOKEN,
         include: [ModerationModule, RoleplayModule],

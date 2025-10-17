@@ -1,20 +1,47 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { ConfigEntity } from "../entity/config.entity";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import {
+  ChatConfigDocument,
+  ChatConfigEntity,
+} from "../entity/chat-config.entity";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
+import { InjectBot } from "nestjs-telegraf";
+import { BotName } from "@/app.constants";
+import { Context, Telegraf } from "telegraf";
+import { Update } from "telegraf/types";
+import { ContextWithChatConfig } from "@core/type/context";
 
 @Injectable()
-export class ConfigService {
+export class ConfigService implements OnModuleInit {
   private readonly logger = new Logger(ConfigService.name);
 
   public readonly botId = parseInt(process.env.TELEGRAM_BOT_ID || "0", 10);
-  private readonly configCache: Map<number, ConfigEntity> = new Map();
+  private readonly configCache: Map<number, ChatConfigDocument> = new Map();
 
   constructor(
-    @InjectModel(ConfigEntity.COLLECTION_NAME)
-    private configModel: Model<ConfigEntity>
+    @InjectBot(BotName)
+    private readonly bot: Telegraf<Context>,
+    @InjectModel(ChatConfigEntity.COLLECTION_NAME)
+    private configModel: Model<ChatConfigEntity>
   ) {
     void this.reloadConfig();
+  }
+
+  /**
+   * @todo: [CRIT]: Fix, the middleware fires AFTER events, not before
+   */
+  onModuleInit() {
+    this.logger.debug(
+      "ConfigService initialized, setting up middleware for chat configurations."
+    );
+
+    this.bot.use(async (context: ContextWithChatConfig<Update>, next) => {
+      const chatId = context.chat.id;
+
+      context.chatConfig = await this.getConfig(chatId);
+
+      await next();
+    });
   }
 
   public async reloadConfig(chatId?: number) {
@@ -38,12 +65,12 @@ export class ConfigService {
       })
       .catch((error) => {
         this.logger.error("Failed to reload configurations", error);
-        return [] as ConfigEntity[];
+        return [] as ChatConfigEntity[];
       });
   }
 
-  public async getConfig(chatId?: number) {
-    if (/*chatId && */ this.configCache.has(chatId)) {
+  public async getConfig(chatId = 0): Promise<ChatConfigDocument> {
+    if (this.configCache.has(chatId)) {
       return this.configCache.get(chatId);
     }
 

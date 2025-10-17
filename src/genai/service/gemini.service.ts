@@ -1,13 +1,19 @@
 import { Injectable, Logger } from "@nestjs/common";
 import {
+  CachedContent,
+  Caches,
   Candidate,
+  Content,
   ContentListUnion,
   GenerateContentResponse,
   GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
+  Models,
+  Part,
   SafetySetting,
   Schema,
+  Type
 } from "@google/genai";
 import * as process from "node:process";
 
@@ -22,28 +28,28 @@ export class GeminiService {
   private readonly safetySettings: Array<SafetySetting> = [
     {
       category: HarmCategory.HARM_CATEGORY_UNSPECIFIED,
-      threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+      threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH
     },
     {
       category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-      threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+      threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH
     },
     {
       category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
     },
     {
       category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-      threshold: HarmBlockThreshold.OFF,
+      threshold: HarmBlockThreshold.OFF
     },
     {
       category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-      threshold: HarmBlockThreshold.OFF,
+      threshold: HarmBlockThreshold.OFF
     },
     {
       category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
-      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-    },
+      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
+    }
   ];
 
   constructor() {
@@ -53,27 +59,42 @@ export class GeminiService {
       project: process.env.GOOGLE_PROJECT_ID,
       googleAuthOptions: {
         keyFilename: "./gcp-key.json",
-        projectId: process.env.GOOGLE_PROJECT_ID,
-      },
+        projectId: process.env.GOOGLE_PROJECT_ID
+      }
     });
   }
 
+  public getModels(): Models {
+    return this.googleGenAI.models;
+  }
+
+  public getCaches(): Caches {
+    return this.googleGenAI.caches;
+  }
+
+  /*
+   * Content generation on-demand with different quality levels
+   */
+
   public async good(
-    prompt: ContentListUnion,
-    systemPrompt?: string,
+    contents: ContentListUnion,
+    systemInstruction?: string,
     canGoogle = false
   ): Promise<Candidate | null> {
+    this.logPromptForDebug(contents, systemInstruction);
+
     const result = await this.googleGenAI.models.generateContent({
       model: "gemini-2.5-pro",
-      contents: prompt,
+      contents,
       config: {
         candidateCount: 1,
         safetySettings: this.safetySettings,
-        systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
+        systemInstruction:
+          systemInstruction ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
         temperature: 1.5,
         topP: 0.85,
-        ...(canGoogle ? { tools: [{ googleSearch: {} }] } : {}),
-      },
+        ...(canGoogle ? { tools: [{ googleSearch: {} }] } : {})
+      }
     });
 
     this.resultSanityCheck(result);
@@ -82,21 +103,24 @@ export class GeminiService {
   }
 
   public async regular(
-    prompt: ContentListUnion,
-    systemPrompt?: string,
+    contents: ContentListUnion,
+    systemInstruction?: string,
     canGoogle = false
   ): Promise<Candidate | null> {
+    this.logPromptForDebug(contents, systemInstruction);
+
     const result = await this.googleGenAI.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: prompt,
+      contents,
       config: {
         candidateCount: 1,
         safetySettings: this.safetySettings,
-        systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
+        systemInstruction:
+          systemInstruction ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
         temperature: 1.3,
         topP: 0.9,
-        ...(canGoogle ? { tools: [{ googleSearch: {} }] } : {}),
-      },
+        ...(canGoogle ? { tools: [{ googleSearch: {} }] } : {})
+      }
     });
 
     this.resultSanityCheck(result);
@@ -105,50 +129,82 @@ export class GeminiService {
   }
 
   public async quick(
-    prompt: ContentListUnion,
-    systemPrompt?: string
+    contents: ContentListUnion,
+    systemInstruction?: string
   ): Promise<Candidate | null> {
+    this.logPromptForDebug(contents, systemInstruction);
+
     const result = await this.googleGenAI.models.generateContent({
       model: "gemini-2.5-flash-lite",
-      contents: prompt,
+      contents,
       config: {
         candidateCount: 1,
         safetySettings: this.safetySettings,
-        systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
+        systemInstruction:
+          systemInstruction ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
         temperature: 1.0,
-        topP: 0.95,
-      },
+        topP: 0.95
+      }
     });
 
     this.resultSanityCheck(result);
 
     return result.candidates[0];
   }
+
+  /*
+   * Caching
+   */
+
+  public async cacheRegular(
+    prompt: ContentListUnion,
+    systemPrompt?: string,
+    displayName = "",
+    ttlSeconds = 25200 // 7 hours by default
+  ): Promise<CachedContent> {
+    const result = await this.googleGenAI.caches.create({
+      model: "gemini-2.5-flash",
+      config: {
+        contents: prompt,
+        systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
+        displayName,
+        ttl: `${ttlSeconds}s`
+      }
+    });
+
+    return result;
+  }
+
+  /*
+   * Summarization & Rating – using structured output
+   */
 
   /**
    * Cool shit: https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/control-generated-output
    * As it's probably the most important part, let's use only the best mode.
    *
    * @param prompt
-   * @param systemPrompt
+   * @param systemInstruction
    */
   public async summarizeAndRate(
     contents: ContentListUnion,
     responseSchema: Schema,
-    systemPrompt?: string
+    systemInstruction?: string
   ): Promise<Candidate> {
+    this.logPromptForDebug(contents, systemInstruction);
+
     const result = await this.googleGenAI.models.generateContent({
       model: "gemini-2.5-pro",
       contents,
       config: {
         candidateCount: 1,
         safetySettings: this.safetySettings,
-        systemInstruction: systemPrompt,
+        systemInstruction,
         temperature: 0.5,
         topP: 1.0,
         responseMimeType: "application/json",
-        responseSchema,
-      },
+        responseSchema
+      }
     });
 
     this.resultSanityCheck(result);
@@ -156,38 +212,122 @@ export class GeminiService {
     return result.candidates[0];
   }
 
-  public async quickRate(
-    prompt: string,
-    systemPrompt?: string
+  public async quickClassify(
+    contents: ContentListUnion,
+    enumValues: Array<string>,
+    description?: string,
+    systemInstruction?: string
   ): Promise<string | null> {
+    this.logPromptForDebug(contents, systemInstruction);
+
     const result = await this.googleGenAI.models.generateContent({
       model: "gemini-2.5-flash-lite",
-      contents: [
-        {
-          role: "system",
-          parts: [{ text: systemPrompt ?? "You are a helpful assistant." }],
-        },
-        { role: "user", parts: [{ text: prompt }] },
-      ],
+      contents,
       config: {
         candidateCount: 1,
         safetySettings: this.safetySettings,
+        systemInstruction:
+          systemInstruction ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
         temperature: 0.0,
         topP: 1.0,
-        responseMimeType: "application/json",
+        responseMimeType: "text/x.enum",
         responseSchema: {
-          type: "object",
-        },
-      },
+          type: Type.STRING,
+          enum: enumValues,
+          description: description
+        }
+      }
     });
 
     this.resultSanityCheck(result);
 
-    return JSON.parse(
+    return (
       result.candidates[0].content.parts
         .map((part) => part.text || "")
         .join("\n") ?? null
     );
+  }
+
+  /*
+   * Batch
+   */
+
+  public async batchGood(
+    prompts: Array<ContentListUnion>,
+    systemPrompt?: string
+  ) {
+    /*const result = await this.googleGenAI.batches.create({
+      model: "gemini-2.5-pro",
+      batchContents: prompts,
+      config: {
+        candidateCount: 1,
+        safetySettings: this.safetySettings,
+        systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
+        temperature: 1.5,
+        topP: 0.85,
+      },
+    });
+
+    result.results.forEach((res) => this.resultSanityCheck(res));
+
+    return result.results.map((res) => res.candidates[0]);*/
+  }
+
+  /*
+   * Utilities
+   */
+
+  private logPromptForDebug(
+    prompt: ContentListUnion,
+    systemInstruction?: string
+  ) {
+    if (process.env.NODE_ENV !== "development") {
+      return;
+    }
+
+    const formatPart = (part: Part): string => {
+      if (part.text) {
+        if (part.text.length > 1000) {
+          return part.text.slice(0, 1000) + "... [truncated]";
+        }
+
+        return part.text;
+      }
+      if (part.inlineData) {
+        return `[Inline data: ${part.inlineData.mimeType}]`;
+      }
+      if (part.fileData) {
+        return `[File data: ${part.fileData.mimeType}]`;
+      }
+      return "[Unknown part]";
+    };
+
+    const formatContent = (content: Content): string =>
+      content.parts.map(formatPart).join("\n");
+
+    const promptText = Array.isArray(prompt)
+      ? prompt.map(formatContent).join("\n---\n")
+      : prompt;
+
+    const logMessage = `
+=====================
+[System Instruction]:
+${systemInstruction}
+---------------------
+[User Prompt]:
+${promptText}
+=====================
+`;
+    this.logger.debug(logMessage);
+  }
+
+  public async getTokenCount(text: string): Promise<number> {
+    const response = await this.googleGenAI.models.countTokens({
+      model: "gemini-2.5-pro",
+      contents: text
+    });
+
+    return response.totalTokens;
   }
 
   public resultSanityCheck(result: GenerateContentResponse) {

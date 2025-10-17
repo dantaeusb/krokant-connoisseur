@@ -68,40 +68,26 @@ export class PromptService {
       });
     }
 
-    prompts.push(
-      {
-        role: "user",
-        parts: [
-          {
-            // @todo: [HIGH] Add words, add languages
-            text:
-              `Users are warned for use of specific words in the chat and for consistent use ` +
-              `of language other than English (more than 5 in 15 minutes), or manually by admin.\n` +
-              `If user was not warned for a day, a warn will cooldown.\n` +
-              `Bans cooldown in a week if not active and not permanent.\n` +
-              `Users can still be manually warned, banned or permanently banned by admins.\n`,
-          },
-          {
-            text:
-              `Some of your responses might be sent by another models or automations ` +
-              `to avoid wasting resources. Respond in the same style as you normally would.\n` +
-              `\n`,
-          },
-        ],
-      },
-      // @todo: [HIGH] This breaks the cache! Add later as a separate prompt that is not cached.
-      {
-        role: "user",
-        parts: [
-          {
-            text:
-              `Real world information might be useful for your response:\n` +
-              `Current ISO time is ${new Date().toISOString()}\n` +
-              `\n`,
-          },
-        ],
-      }
-    );
+    prompts.push({
+      role: "user",
+      parts: [
+        {
+          // @todo: [HIGH] Add words, add languages
+          text:
+            `Users are warned for use of specific words in the chat and for consistent use ` +
+            `of language other than English (more than 5 in 15 minutes), or manually by admin.\n` +
+            `If user was not warned for a day, a warn will cooldown.\n` +
+            `Bans cooldown in a week if not active and not permanent.\n` +
+            `Users can still be manually warned, banned or permanently banned by admins.\n`,
+        },
+        {
+          text:
+            `Some of your responses might be sent by another models or automations ` +
+            `to avoid wasting resources. Respond in the same style as you normally would.\n` +
+            `\n`,
+        },
+      ],
+    });
 
     let totalLength = 0;
 
@@ -152,36 +138,6 @@ export class PromptService {
       userParticipants
     );
 
-    let [warns, bans] = await Promise.all([
-      Promise.all(
-        usersWithPersons.map((user) => {
-          return this.moderationService
-            .getWarns(user.chatId, user.userId)
-            .then((warn) =>
-              warn ? { userId: user.userId, count: warn.count } : null
-            );
-        })
-      ),
-      Promise.all(
-        usersWithPersons.map((user) => {
-          return this.moderationService
-            .getBans(user.chatId, user.userId)
-            .then((ban) =>
-              ban
-                ? {
-                    userId: user.userId,
-                    severity: ban.severity,
-                    reason: ban.reason,
-                  }
-                : null
-            );
-        })
-      ),
-    ]);
-
-    warns = warns.filter((w) => w !== null);
-    bans = bans.filter((b) => b !== null);
-
     usersWithPersons.forEach((user) => {
       if (
         user.person &&
@@ -193,29 +149,7 @@ export class PromptService {
           user
         )}]\n`;
 
-        const warn = warns.find((w) => w.userId === user.userId);
-
-        if (warn && warn.count > 0) {
-          personDescription += `This user has been warned ${warn.count} times out of ${ModerationService.WARN_LIMIT}\n`;
-        } else {
-          personDescription += `This user has no warnings\n`;
-        }
-
-        const ban = bans.find((b) => b.userId === user.userId);
-
-        if (ban) {
-          if (ban.severity > 0 && ban.severity <= 8) {
-            personDescription += `This user was banned ${
-              ban.severity - 1
-            } times, last one for reason: ${ban.reason}\n`;
-          } else if (ban.severity > 8) {
-            personDescription += `This user is permanently banned for reason: ${ban.reason}\n`;
-          } else {
-            personDescription += `This user has no bans.\n`;
-          }
-        }
-
-        personDescription += `\nPersonality and relationship information – use it but do not directly disclose it:\n`;
+        personDescription += `Personality and relationship information – use it but do not directly disclose it:\n`;
         if (user.person.names.length > 0) {
           personDescription += `Their other names or names are:${user.person.names.join(
             ", "
@@ -226,13 +160,15 @@ export class PromptService {
             .map((fact) => `- ${fact}`)
             .join("\n")}\n`;
         }
-        if (user.person.thoughts.length > 0) {
+        // @todo: [HIGH] Re-enable thoughts when we evaluation
+        /*if (user.person.thoughts.length > 0) {
           personDescription += `Your thoughts about that person based on interactions:\n${user.person.thoughts
             .map((thought) => `- Had ${thought.thought}`)
             .join("\n")}.\n\n`;
-        }
+        }*/
 
         text += personDescription;
+        text += `\n\n`;
       }
     });
 
@@ -250,6 +186,109 @@ export class PromptService {
     ];
   }
 
+  /**
+   * Generate situational prompt based on current events, user moderation status,
+   * basically anything that cannot be cached.
+   * @param userParticipants
+   */
+  public async getSituationalPrompt(
+    userParticipants: Array<UserDocument>
+  ): Promise<Array<Content>> {
+    const prompts: Array<Content> = [
+      {
+        role: "user",
+        parts: [
+          {
+            text:
+              `Real world information might be useful for your response:\n` +
+              `Current ISO time is ${new Date().toISOString()}\n` +
+              `\n`,
+          },
+        ],
+      },
+    ];
+
+    // @todo: [MED] Add ban reasons from events
+    let [warns, bans] = await Promise.all([
+      Promise.all(
+        userParticipants.map((user) => {
+          return this.moderationService
+            .getWarns(user.chatId, user.userId)
+            .then((warn) =>
+              warn ? { userId: user.userId, count: warn.count } : null
+            );
+        })
+      ),
+      Promise.all(
+        userParticipants.map((user) => {
+          return this.moderationService
+            .getBans(user.chatId, user.userId)
+            .then((ban) =>
+              ban
+                ? {
+                    userId: user.userId,
+                    severity: ban.severity,
+                  }
+                : null
+            );
+        })
+      ),
+    ]);
+
+    warns = warns.filter((w) => w !== null);
+    bans = bans.filter((b) => b !== null);
+
+    userParticipants.forEach((user) => {
+      const warn = warns.find((w) => w.userId === user.userId);
+      let userStatus = `Status of user ${this.userService.getSafeUniqueIdentifier(
+        user
+      )}:\n`;
+
+      if (warn && warn.count > 0) {
+        userStatus += `* Has been warned ${warn.count} times out of ${ModerationService.WARN_LIMIT}\n`;
+      } else {
+        userStatus += `* Has no active warns.\n`;
+      }
+
+      const ban = bans.find((b) => b.userId === user.userId);
+
+      if (ban) {
+        if (ban.severity > 0) {
+          userStatus += `* Was banned ${ban.severity - 1} times.\n`;
+        } else if (ban.severity > 8) {
+          userStatus += `* Is permanently banned.\n`;
+        }
+      } else {
+        userStatus += `* This has no bans on record.\n`;
+      }
+
+      userStatus += `\n`;
+
+      prompts.push({
+        role: "user",
+        parts: [
+          {
+            text: userStatus,
+          },
+        ],
+      });
+    });
+
+    warns = warns.filter((w) => w !== null);
+    bans = bans.filter((b) => b !== null);
+
+    let totalLength = 0;
+
+    prompts.forEach((prompt) => {
+      const promptText = prompt.parts.map((part) => part.text || "").join("\n");
+      totalLength += promptText.length;
+    });
+
+    this.logger.debug(`Current situation prompt length: ${totalLength}`);
+
+    return prompts;
+  }
+
   public getPromptForReply(toUser?: UserDocument): Array<Content> {
     return [
       {
@@ -257,13 +296,14 @@ export class PromptService {
         parts: [
           {
             text:
-              `You are replying to ${toUser?.name ?? "unknown user"}\n` +
+              `You will be replying to ${toUser?.name ?? "unknown user"}\n` +
               `Their messages are starting with [${this.userService.getSafeUniqueIdentifier(
                 toUser
               )}]\n` +
-              `Messages starting with > belong to the current conversation, pay more attention to them.\n` +
-              `Messages without > may be irrelevant but can be used for context\n` +
-              `Do not add [] or > to your messages.\n` +
+              `Messages starting with Current Thread belong to the current conversation, pay more attention to them.\n` +
+              `Messages outside of the current thread may be irrelevant but can be used for context\n` +
+              `Do not add Current Thread label with user handles [] and time to your messages.\n` +
+              `After the chat context, you will be provided with current information and a task with message to reply to.\n` +
               `\n`,
           },
         ],

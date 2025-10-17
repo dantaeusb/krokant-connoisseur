@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectBot } from "nestjs-telegraf";
-import { ClankerBotName } from "@/app.constants";
+import { BotName } from "@/app.constants";
 import { Context, Telegraf } from "telegraf";
 import {
   BotCommandScope,
@@ -31,7 +31,7 @@ export class CommandsService {
     new Map();
 
   constructor(
-    @InjectBot(ClankerBotName)
+    @InjectBot(BotName)
     private readonly bot: Telegraf<Context>
   ) {
     this.commands.set("all_private_chats", []);
