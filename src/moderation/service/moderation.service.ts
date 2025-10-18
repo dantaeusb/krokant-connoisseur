@@ -141,6 +141,7 @@ export class ModerationService {
    * @param reason reason for the mute
    * @param limitedSeverity do not increase severity beyond this value
    * @param forceSeverity force set severity to this value
+   * @param forceDuration force set duration to this value (in milliseconds)
    */
   public async banUser(
     chatId: number,
@@ -148,7 +149,8 @@ export class ModerationService {
     revoke = false,
     reason?: string,
     limitedSeverity?: number,
-    forceSeverity?: number
+    forceSeverity?: number,
+    forceDuration?: number
   ): Promise<BanResult> {
     const banEntity = await this.banEntityModel
       .findOneAndUpdate(
@@ -171,7 +173,9 @@ export class ModerationService {
       banEntity.severity += 1;
     }
 
-    const banEndTime = this.calculateBanEndTime(banEntity);
+    const banEndTime = forceDuration
+      ? Math.floor((new Date().getTime() + forceDuration) / 1000)
+      : this.calculateBanEndTime(banEntity);
 
     this.logger.log(
       `With severity ${
@@ -180,7 +184,7 @@ export class ModerationService {
         banEndTime > 0
           ? new Date(banEndTime * 1000).toISOString()
           : "end of time"
-      }`
+      }${reason ? ` for reason: ${reason}` : ""} via ${action}ing`
     );
 
     try {

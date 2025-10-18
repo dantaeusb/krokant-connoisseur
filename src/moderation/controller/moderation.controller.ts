@@ -32,6 +32,9 @@ import {
 
 @Update()
 export class ModerationController {
+  private static readonly MIN_SELF_MUTE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+  private static readonly MAX_SELF_MUTE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 1 day
+
   private readonly logger = new Logger("Moderation/ModerationController");
 
   constructor(
@@ -44,7 +47,7 @@ export class ModerationController {
     private readonly userService: UserService,
     private readonly messageService: MessageService,
     @Inject(forwardRef(() => CharacterService))
-    private readonly characterService: CharacterService,
+    private readonly characterService: CharacterService
   ) {
     Promise.all([
       this.commandsService.extendCommands(
@@ -112,9 +115,16 @@ export class ModerationController {
       return;
     }
 
+    const commandArguments = this.commandsService.getCommandMessageArguments(
+      context.text
+    );
+    const reason = commandArguments.join(" ") || "No reason provided";
+
     const result = await this.moderationService.warnUser(
       message.chat.id,
-      targetUserId
+      targetUserId,
+      undefined,
+      reason
     );
 
     const user = await this.userService.getUser(
@@ -195,9 +205,29 @@ export class ModerationController {
       return;
     }
 
+    const commandArguments = this.commandsService.getCommandMessageArguments(
+      context.text
+    );
+
+    const revoke =
+      this.commandsService.extractCommandExactStringMut(commandArguments, [
+        "ban",
+        "mute",
+      ]) === "ban";
+    const severity =
+      this.commandsService.extractCommandIntegerMut(commandArguments);
+    const duration =
+      this.commandsService.extractCommandDurationMut(commandArguments);
+    const reason = commandArguments.join(" ") || "No reason provided";
+
     const result = await this.moderationService.banUser(
       message.chat.id,
-      targetUserId
+      targetUserId,
+      revoke,
+      reason,
+      undefined,
+      severity,
+      duration
     );
 
     const targetUser = await this.userService.getUser(
@@ -209,13 +239,19 @@ export class ModerationController {
     const name = targetUser?.name || "User";
 
     if (result === BanResult.MUTED) {
-      void context.react("👌");
+      context.react("👌").catch((error) => {
+        this.logger.error("Failed to react to message:", error);
+      });
       await this.reply(context, message, `${name} has been muted.`);
     } else if (result === BanResult.PERMA_BANNED) {
-      void context.react("👌");
+      context.react("👌").catch((error) => {
+        this.logger.error("Failed to react to message:", error);
+      });
       await this.reply(context, message, `${name} has been banned forever.`);
     } else {
-      void context.react("🤷‍♂");
+      context.react("🤷‍♂").catch((error) => {
+        this.logger.error("Failed to react to message:", error);
+      });
       await this.reply(context, message, `Failed to mute ${name}.`);
     }
   }
@@ -235,7 +271,9 @@ export class ModerationController {
 
     if (!targetUserId) {
       this.logger.error("Could not find target user to unban.");
-      void context.react("🤷‍♂");
+      void context.react("🤷‍♂").catch((error) => {
+        this.logger.error("Failed to react to message:", error);
+      });
       return;
     }
 
@@ -243,7 +281,9 @@ export class ModerationController {
       await this.moderationService.unbanUser(message.chat.id, targetUserId);
     } catch (error) {
       this.logger.error("Error unbanning user:", error);
-      void context.react("🤷‍♂");
+      void context.react("🤷‍♂").catch((error) => {
+        this.logger.error("Failed to react to message:", error);
+      });
       return;
     }
 
@@ -258,6 +298,11 @@ export class ModerationController {
     await this.reply(context, message, `${name} has been unbanned.`);
   }
 
+  /**
+   * @todo: [HIGH] Register event (db) and notify user
+   * @param context
+   * @param message
+   */
   @Command("permaban")
   @UseGuards(AdminGuard)
   async permabanCommand(
@@ -271,12 +316,82 @@ export class ModerationController {
     );
 
     if (!targetUserId) {
-      this.logger.error("Could not find target user to unban.");
-      void context.react("🤷‍♂");
+      this.logger.error("Could not find target user to permaban.");
+      context.react("🤷‍♂").catch((error) => {
+        this.logger.error("Failed to react to message:", error);
+      });
       return;
     }
 
     await this.moderationService.permaBanUser(context.chat.id, targetUserId);
+    context.react("👌").catch((error) => {
+      this.logger.error("Failed to react to message:", error);
+    });
+
+    await this.reply(context, message, `User has been permabanned.`);
+  }
+
+  /**
+   * Do not question its name.
+   * @param context
+   * @param message
+   */
+  @Command("penis")
+  @Command("muteme")
+  async selfMuteCommand(
+    @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
+    @Message() message: TelegramUpdate.MessageUpdate["message"]
+  ): Promise<void> {
+    this.logger.debug("Handling /muteme command");
+
+    const commandArguments = this.commandsService.getCommandMessageArguments(
+      context.text
+    );
+
+    let duration = 60 * 60 * 1000; // Default to 1 hour
+
+    if (commandArguments.length !== 0) {
+      if (commandArguments[0].match(/^\d+$/) !== null) {
+        duration = parseInt(commandArguments[0]) * 60 * 1000;
+      } else {
+        const possibleDuration =
+          this.commandsService.extractCommandDurationMut(commandArguments);
+
+        if (possibleDuration !== null) {
+          duration = possibleDuration;
+        }
+      }
+    }
+
+    duration = Math.max(
+      Math.min(duration, ModerationController.MAX_SELF_MUTE_DURATION_MS),
+      ModerationController.MIN_SELF_MUTE_DURATION_MS
+    );
+
+    await this.moderationService.banUser(
+      context.chat.id,
+      context.from.id,
+      false,
+      "User requested self-mute",
+      1,
+      undefined,
+      duration
+    );
+
+    context.react("👌").catch((error) => {
+      this.logger.error("Failed to react to message:", error);
+    });
+
+    const targetUser = await this.userService.getUser(
+      context.chat.id,
+      context.from.id,
+      context.from
+    );
+
+    const name = this.userService.getSafeUserName(targetUser);
+
+    // @todo: [MED] Add duration to message
+    await this.reply(context, message, `${name} decided to mute themselves.`);
   }
 
   /**
@@ -465,15 +580,32 @@ export class ModerationController {
           context,
           message,
           `${name} has been warned for using profanity.`
-        );
+        ).catch((error) => {
+          this.logger.error(
+            "Failed to send acknowledge for warn on profanity:",
+            error
+          );
+        });
       } else if (result === WarnResult.MUTED) {
         await this.reply(
           context,
           message,
           `${name} has been banned due using profanity after reaching the warning limit.`
-        );
+        ).catch((error) => {
+          this.logger.error(
+            "Failed to send acknowledge for ban on profanity:",
+            error
+          );
+        });
       } else {
-        await this.reply(context, message, "Failed to issue a warning.");
+        await this.reply(context, message, "Failed to issue a warning.").catch(
+          (error) => {
+            this.logger.error(
+              "Failed to send acknowledge for ban on profanity:",
+              error
+            );
+          }
+        );
       }
     }
 
@@ -497,9 +629,15 @@ export class ModerationController {
         context,
         message,
         `You have ${warn.count} of ${ModerationService.WARN_LIMIT} warning(s).`
-      );
+      ).catch((error) => {
+        this.logger.error("Failed to send warns reply:", error);
+      });
     } else {
-      await this.reply(context, message, "You have no warnings.");
+      await this.reply(context, message, "You have no warnings.").catch(
+        (error) => {
+          this.logger.error("Failed to send warns reply:", error);
+        }
+      );
     }
   }
 
@@ -522,9 +660,13 @@ export class ModerationController {
         context,
         message,
         `Your last ban had severity of ${ban.severity}, which is ${duration}.`
-      );
+      ).catch((error) => {
+        this.logger.error("Failed to send bans reply:", error);
+      });
     } else {
-      this.reply(context, message, "You have no bans.");
+      this.reply(context, message, "You have no bans.").catch((error) => {
+        this.logger.error("Failed to send bans reply:", error);
+      });
     }
   }
 

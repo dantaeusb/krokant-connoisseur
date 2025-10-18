@@ -3,13 +3,13 @@ import { InjectBot } from "nestjs-telegraf";
 import { BotName } from "@/app.constants";
 import { Context, Telegraf } from "telegraf";
 import {
-  BotCommandScope,
   BotCommandScopeAllChatAdministrators,
   BotCommandScopeAllGroupChats,
   BotCommandScopeAllPrivateChats,
 } from "@telegraf/types/settings";
 import { Semaphore } from "async-mutex";
 import { BotCommand } from "@telegraf/types/manage";
+import parse from "parse-duration";
 
 type BotCommandScopeType =
   | BotCommandScopeAllPrivateChats["type"]
@@ -128,6 +128,60 @@ export class CommandsService {
     }
     parts.shift();
     return parts;
+  }
+
+  public extractCommandDurationMut(args: string[]): number | null {
+    if (args.length === 0) {
+      return null;
+    }
+
+    for (let argsLeft = args.length; argsLeft > 0; argsLeft--) {
+      const attempt = args.slice(0, argsLeft).join(" ");
+      const duration: number = parse(attempt);
+
+      if (duration !== null && !isNaN(duration) && duration > 0) {
+        args.splice(0, argsLeft);
+        return duration;
+      }
+    }
+
+    return null;
+  }
+
+  public extractCommandIntegerMut(args: string[]): number | null {
+    if (args.length === 0) {
+      return null;
+    }
+
+    const supposedInteger = args[0].trim();
+    const parsed = parseInt(supposedInteger, 10);
+
+    if (!isNaN(parsed)) {
+      args.shift();
+      return parsed;
+    }
+
+    return null;
+  }
+
+  public extractCommandExactStringMut(
+    args: string[],
+    strings: string[]
+  ): string | null {
+    if (args.length === 0) {
+      return null;
+    }
+
+    const supposedString = args[0].trim().toLowerCase();
+
+    for (const str of strings) {
+      if (supposedString === str.toLowerCase()) {
+        args.shift();
+        return str;
+      }
+    }
+
+    return null;
   }
 
   /**
