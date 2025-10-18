@@ -227,6 +227,16 @@ export class MessageService {
     return null;
   }
 
+  public async getMessage(
+    chatId: number,
+    messageId: number
+  ): Promise<MessageDocument | null> {
+    return this.messageEntityModel.findOne({
+      chatId: chatId,
+      messageId: messageId,
+    });
+  }
+
   public async updateMessage(
     context: Context<Update.EditedMessageUpdate>
   ): Promise<MessageDocument | void> {
@@ -363,6 +373,31 @@ export class MessageService {
     return this.messageEntityModel.create(message).catch((error) => {
       this.logger.error("Failed to record bot message:", error);
     });
+  }
+
+  public async getUnprocessedMessages(
+    chatId: number,
+    fromMessageId?: number,
+    limit?: number
+  ): Promise<Array<MessageDocument>> {
+    const query = this.messageEntityModel
+      .find({
+        chatId: chatId,
+        $or: [{ conversationIds: null }, { conversationIds: [] }],
+      })
+      .sort({ date: -1 });
+
+    if (fromMessageId) {
+      query.where("messageId").lt(fromMessageId);
+    }
+
+    if (limit) {
+      query.limit(limit);
+    }
+
+    const messages = await query.exec();
+
+    return messages.reverse();
   }
 
   public async getLatestMessages(

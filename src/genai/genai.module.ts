@@ -5,6 +5,7 @@ import {
   ChatCacheEntity,
   ChatCacheSchema,
 } from "@genai/entity/chat-cache.entity";
+import { GeminiCacheService } from "@genai/service/gemini-cache.service";
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import {
       },
     ]),
   ],
-  providers: [GeminiService],
-  exports: [GeminiService],
+  providers: [GeminiService, GeminiCacheService],
+  exports: [GeminiService, GeminiCacheService],
 })
 export class GenAiModule {}

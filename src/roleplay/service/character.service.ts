@@ -6,6 +6,7 @@ import { Content } from "@google/genai";
 import { MessageDocument } from "@core/entity/message.entity";
 import { UserService } from "@core/service/user.service";
 import { GeminiService } from "@genai/service/gemini.service";
+import { GeminiCacheService } from "@genai/service/gemini-cache.service";
 import { ConversationService } from "./conversation.service";
 import { PromptService } from "./prompt.service";
 import { AnswerStrategyService } from "./answer-strategy.service";
@@ -27,6 +28,7 @@ export class CharacterService {
   constructor(
     private readonly configService: ConfigService,
     private readonly geminiService: GeminiService,
+    private readonly geminiCacheService: GeminiCacheService,
     private readonly messageService: MessageService,
     private readonly userService: UserService,
     private readonly conversationService: ConversationService,
@@ -42,16 +44,8 @@ export class CharacterService {
   ): Promise<string> {
     const config = await this.configService.getConfig(chatId);
 
-    const currentConversationContext =
-      await this.collectCurrentConversationContext(chatId, messageId);
-
-    const pastConversationsContext =
-      await this.conversationService.getConversations(chatId);
-
-    const users = await this.userService.getParticipants(
-      chatId,
-      currentConversationContext
-    );
+    const users = await this.userService.getActiveUsersInChat(chatId, 50);
+    const message = await this.messageService.getMessage(chatId, messageId);
 
     let answerStrategy: AnswerStrategyEntity =
       await this.answerStrategyService.solveChatStrategy(
@@ -79,66 +73,117 @@ export class CharacterService {
       return "";
     }
 
-    const [
-      characterPrompt,
-      commandsPrompt,
-      participantsPrompt,
-      pastConversationsPrompt,
-      replyPrompt,
-    ] = await Promise.all([
-      this.promptService.getPromptFromChatCharacter(chatId),
-      this.promptService.getPromptForCommands(),
-      this.promptService.getPromptForUsersParticipants(users),
-      this.promptService.getPromptFromConversations(pastConversationsContext),
-      this.promptService.getPromptForReply(toUser),
-    ]);
+    let cache = await this.geminiCacheService.getChatCache(
+      chatId,
+      answerStrategy.quality
+    );
 
-    const promptList: Array<Content> = [
-      ...characterPrompt,
-      ...commandsPrompt,
-      ...participantsPrompt,
-      ...pastConversationsPrompt,
-      ...replyPrompt,
-    ];
+    let promptList: Array<Content> = [];
 
-    const promptThreadChain: Array<Content> =
-      this.promptService.getPromptFromMessages(
-        currentConversationContext.reverse(),
-        users
+    if (!cache) {
+      const pastConversationsContext =
+        await this.conversationService.getConversations(chatId);
+
+      const [
+        currentConversationContext,
+        characterPrompt,
+        commandsPrompt,
+        participantsPrompt,
+        pastConversationsPrompt,
+        replyPrompt,
+      ] = await Promise.all([
+        this.collectCurrentConversationContext(chatId, messageId),
+        this.promptService.getPromptFromChatCharacter(chatId),
+        this.promptService.getPromptForCommands(),
+        this.promptService.getPromptForUsersParticipants(users),
+        this.promptService.getPromptFromConversations(pastConversationsContext),
+        this.promptService.getPromptForReply(toUser),
+      ]);
+
+      const promptThreadChain: Array<Content> =
+        this.promptService.getPromptFromMessages(
+          currentConversationContext,
+          users
+        );
+
+      promptList.push(
+        ...characterPrompt,
+        ...commandsPrompt,
+        ...participantsPrompt,
+        ...pastConversationsPrompt,
+        ...replyPrompt,
+        ...promptThreadChain
       );
 
-    promptList.push(...promptThreadChain);
+      const count = await this.geminiService.getTokenCount(
+        answerStrategy.quality,
+        promptList
+      );
+      const worthCaching = count > 10000;
 
-    // @todo: [CRIT]: Cache everything above this line!
+      if (worthCaching) {
+        cache = await this.geminiCacheService.createChatCache(
+          chatId,
+          answerStrategy.quality,
+          config.characterSystemPrompt,
+          promptList,
+          [
+            currentConversationContext[0].messageId,
+            currentConversationContext[currentConversationContext.length - 1].messageId,
+          ]
+        );
+
+        promptList = [];
+      }
+    } else {
+      const currentConversationContext =
+        await this.collectCurrentConversationContext(
+          chatId,
+          messageId,
+          cache.endMessageId
+        );
+
+      const promptThreadChain: Array<Content> =
+        this.promptService.getPromptFromMessages(
+          currentConversationContext,
+          users
+        );
+
+      promptList.push(...promptThreadChain);
+    }
 
     promptList.push(...(await this.promptService.getSituationalPrompt(users)));
 
     promptList.push({
       role: "user",
-      parts: [{ text: `Reply to following message:\n` }],
+      parts: [{ text: answerStrategy.strategyPrompt + "\n\n" }],
     });
+
+    const replyToMessage = message.replyToMessageId
+      ? await this.messageService.getMessage(chatId, message.replyToMessageId)
+      : null;
 
     promptList.push({
       role: "user",
       parts: [
         {
-          text,
+          text: this.promptService.formatMessageContent(
+            message,
+            toUser,
+            users.find((u) => u.userId === replyToMessage.userId),
+            true
+          ),
         },
       ],
     });
 
-    const candidate =
-      answerStrategy.quality === "advanced"
-        ? await this.geminiService.good(
-            promptList,
-            config.characterSystemPrompt,
-            config.canGoogle
-          )
-        : await this.geminiService.regular(
-            promptList,
-            config.characterSystemPrompt,
-            config.canGoogle
-          );
+    const candidate = await this.geminiService.generate(
+      answerStrategy.quality,
+      promptList,
+      config.characterSystemPrompt,
+      config.canGoogle,
+      cache ? cache.name : undefined
+    );
 
     if (!candidate) {
       return this.fallback();
@@ -186,7 +231,8 @@ export class CharacterService {
       ...rephrasePrompt,
     ];
 
-    const candidate = await this.geminiService.quick(
+    const candidate = await this.geminiService.generate(
+      "low",
       promptList,
       chatConfig.characterSystemPrompt
     );
@@ -211,17 +257,19 @@ export class CharacterService {
    * We also need to remove current time and for that rewrite prompt.
    * @param chatId
    * @param messageId
+   * @param fromMessageId
    * @private
    */
   private async collectCurrentConversationContext(
     chatId: number,
-    messageId: number
+    messageId: number,
+    fromMessageId?: number
   ): Promise<Array<MessageDocumentWithChain>> {
     const [pastMessages, chain]: [
       Array<MessageDocument>,
       Array<MessageDocumentWithChain>
     ] = await Promise.all([
-      this.messageService.getLatestMessages(chatId, 500),
+      this.messageService.getUnprocessedMessages(chatId, fromMessageId, 10000),
       this.messageService.getMessageChain(chatId, messageId),
     ]);
 

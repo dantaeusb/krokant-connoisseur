@@ -1,9 +1,7 @@
-import { Ctx, InjectBot, Message, Next, On, Update } from "nestjs-telegraf";
+import { Ctx, Next, On, Update } from "nestjs-telegraf";
 import { Logger } from "@nestjs/common";
 import { Update as TelegramUpdate } from "telegraf/types";
-import { BotName } from "@/app.constants";
-import { Context, Telegraf } from "telegraf";
-import { ConfigService } from "../service/config.service";
+import { Context } from "telegraf";
 import { UserService } from "../service/user.service";
 import { MessageService } from "../service/message.service";
 
@@ -12,12 +10,9 @@ export class LoggingController {
   private readonly logger = new Logger("Core/LoggingController");
 
   constructor(
-    @InjectBot(BotName)
-    private readonly bot: Telegraf<Context>,
-    private readonly configService: ConfigService,
     private readonly userService: UserService,
     private readonly messageService: MessageService
-  ) { }
+  ) {}
 
   @On("edited_message")
   public async updateMessage(
@@ -29,14 +24,20 @@ export class LoggingController {
     try {
       const edited = context.update.edited_message;
 
-      if ('text' in edited && edited.text) {
+      this.userService
+        .updateLastActivity(context.chat.id, context.from.id)
+        .catch((error) => {
+          this.logger.error("Error updating last activity:", error);
+        });
+
+      if ("text" in edited && edited.text) {
         const message = await this.messageService.updateMessage(context);
-        this.logger.debug('Successfully updated message text');
+        this.logger.debug("Successfully updated message text");
       } else {
-        this.logger.debug('Edited message is not text-based');
+        this.logger.debug("Edited message is not text-based");
       }
     } catch (error) {
-      this.logger.error('Error updating message:', error);
+      this.logger.error("Error updating message:", error);
     }
 
     await next();
@@ -46,8 +47,6 @@ export class LoggingController {
   public async recordMessage(
     @Ctx()
     context: Context<TelegramUpdate.MessageUpdate>,
-    @Message()
-    message: TelegramUpdate.MessageUpdate["message"],
     @Next() next: () => Promise<void>
   ): Promise<void> {
     this.logger.debug("Handling message for logging");
@@ -56,9 +55,15 @@ export class LoggingController {
       return next();
     }
 
+    this.userService
+      .updateLastActivity(context.chat.id, context.from.id)
+      .catch((error) => {
+        this.logger.error("Error updating last activity:", error);
+      });
+
     return await new Promise<void>((resolve, reject) => {
       this.userService
-        .getUser(message.chat.id, message.from.id, message.from)
+        .getUser(context.chat.id, context.from.id, context.from)
         .then((user) => {
           if (!user) {
             this.logger.error("Could not find or create user.");

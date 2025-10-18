@@ -28,6 +28,9 @@ export class UserEntity {
   @Prop()
   name: string;
 
+  @Prop({ default: () => new Date() })
+  lastActivityAt: Date;
+
   @Prop({ type: Types.ObjectId, ref: "CharacterEntity" })
   character?: PersonEntity;
 

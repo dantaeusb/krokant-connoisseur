@@ -28,6 +28,9 @@ export class ChatCacheEntity {
   @Prop({ required: true })
   endMessageId: number;
 
+  @Prop({ required: true, default: false })
+  deleted: boolean;
+
   createdAt?: Date;
   updatedAt?: Date;
 }

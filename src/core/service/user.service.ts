@@ -164,12 +164,42 @@ export class UserService implements OnModuleInit {
       .exec();
   }
 
+  public async updateLastActivity(
+    chatId: number,
+    userId: number,
+    lastActivityAt: Date = new Date()
+  ): Promise<void> {
+    await this.userEntityModel
+      .updateOne(
+        { chatId: chatId, userId: userId },
+        { lastActivityAt: lastActivityAt }
+      )
+      .exec();
+  }
+
   public async getAllUsersInChat(chatId: number): Promise<UserDocument[]> {
     return this.userEntityModel
       .find({
         chatId: chatId,
       })
       .exec();
+  }
+
+  public async getActiveUsersInChat(
+    chatId: number,
+    limit?: number
+  ): Promise<UserDocument[]> {
+    const query = this.userEntityModel
+      .find({
+        chatId: chatId,
+      })
+      .sort({ lastActivityAt: -1 });
+
+    if (limit) {
+      query.limit(limit);
+    }
+
+    return query.exec();
   }
 
   public async getUserByUsername(chatId: number, username: string) {
