@@ -18,12 +18,6 @@ import { ExtraReplyMessage } from "telegraf/typings/telegram-types";
 @Injectable()
 export class MessageService {
   public static readonly HIDDEN_MESSAGE_TEXT = "[Hidden by user preference]";
-  /**
-   * 36 hours - time window to consider messages for conversation summarization.
-   * Messages before this period could be summarized into a single prompt.
-   */
-  public static readonly CONVERSATION_SUMMARIZATION_WINDOW_MS =
-    36 * 60 * 60 * 1000;
 
   /**
    * If there are less messages than this threshold in the summarization window,
@@ -419,11 +413,6 @@ export class MessageService {
       .find({
         chatId: chatId,
         conversationIds: null,
-        date: {
-          $lt: new Date(
-            Date.now() - MessageService.CONVERSATION_SUMMARIZATION_WINDOW_MS
-          ),
-        },
       })
       .sort({ date: 1 })
       .limit(limit)

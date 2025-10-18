@@ -19,7 +19,7 @@ export class BanEventEntity {
   @Prop()
   reason: string;
 
-  @Prop({ required: true })
+  @Prop()
   expiresAt: Date;
 
   createdAt?: Date;

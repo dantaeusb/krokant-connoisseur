@@ -112,6 +112,14 @@ export class CharacterService {
         ...participantsPrompt,
         ...pastConversationsPrompt,
         ...replyPrompt,
+        {
+          role: "user",
+          parts: [
+            {
+              text: "***\n\nThose are all the previous messages from this chat that were not summarized yet. After that, you will be provided with current messages and a task below.\n\n",
+            },
+          ],
+        },
         ...promptThreadChain
       );
 
@@ -154,7 +162,17 @@ export class CharacterService {
       promptList.push(...promptThreadChain);
     }
 
-    promptList.push(...(await this.promptService.getSituationalPrompt(users)));
+    promptList.push(
+      {
+        role: "user",
+        parts: [
+          {
+            text: "***\n\nThose are all the messages from the chat. You will be provided with current information and a task below.\n\n",
+          },
+        ],
+      },
+      ...(await this.promptService.getSituationalPrompt(users))
+    );
 
     promptList.push({
       role: "user",

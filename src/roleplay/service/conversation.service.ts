@@ -51,7 +51,7 @@ type SummarizationResponse = {
  */
 @Injectable()
 export class ConversationService {
-  private static MAX_CONVERSATION_GAP_MS = 1000 * 60 * 60 * 4; // 4 hours
+  private static MAX_CONVERSATION_GAP_MS = 1000 * 60 * 60 * 24; // 4 hours
   private static MAX_RUNS_PER_HOUR = 10;
 
   private logger: Logger = new Logger("Roleplay/ConversationService");
@@ -91,7 +91,7 @@ export class ConversationService {
 
   public async processOldestUnprocessedConversation(
     chatId: number,
-    characterCountLimit = 50000
+    characterCountLimit = 500000
   ): Promise<ConversationDocument | null> {
     const messages = await this.getOldestUnprocessedConversationMessages(
       chatId,
@@ -343,7 +343,7 @@ export class ConversationService {
    */
   public async getOldestUnprocessedConversationMessages(
     chatId: number,
-    characterCountLimit = 50000
+    characterCountLimit = 500000
   ): Promise<Array<MessageDocument>> {
     const messages = await this.messageService.getOldestUnprocessedMessages(
       chatId,

@@ -309,7 +309,9 @@ ${promptText}
 
     //this.logger.debug(result);
 
-    if (result.candidates.length > 0) {
+    if (!result.candidates) {
+      this.logger.warn("No candidates in the result");
+    } else if (result.candidates.length > 0) {
       const answer =
         result.candidates[0].content.parts
           .map((part) => part.text || "")
