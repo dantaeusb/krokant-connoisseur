@@ -219,6 +219,7 @@ export class ModerationService {
       return BanResult.NONE;
     }
 
+    banEntity.expiresAt = banEndTime > 0 ? new Date(banEndTime * 1000) : null;
     banEntity.events.push({
       type: revoke ? "ban" : "mute",
       reason: reason,
