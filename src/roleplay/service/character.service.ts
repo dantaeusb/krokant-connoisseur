@@ -129,8 +129,10 @@ export class CharacterService {
           promptList,
           [
             currentConversationContext[0].messageId,
-            currentConversationContext[currentConversationContext.length - 1].messageId,
-          ]
+            currentConversationContext[currentConversationContext.length - 1]
+              .messageId,
+          ],
+          config.canGoogle
         );
 
         promptList = [];
@@ -163,6 +165,11 @@ export class CharacterService {
       ? await this.messageService.getMessage(chatId, message.replyToMessageId)
       : null;
 
+    let replyToUser: UserDocument;
+    if (replyToMessage) {
+      replyToUser = users.find((u) => u.userId === replyToMessage.userId);
+    }
+
     promptList.push({
       role: "user",
       parts: [
@@ -170,7 +177,7 @@ export class CharacterService {
           text: this.promptService.formatMessageContent(
             message,
             toUser,
-            users.find((u) => u.userId === replyToMessage.userId),
+            replyToUser,
             true
           ),
         },

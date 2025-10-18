@@ -5,6 +5,7 @@ import {
   Candidate,
   Content,
   ContentListUnion,
+  GenerateContentConfig,
   GenerateContentResponse,
   GoogleGenAI,
   HarmBlockThreshold,
@@ -102,24 +103,31 @@ export class GeminiService {
   ): Promise<Candidate | null> {
     this.logPromptForDebug(contents, systemInstruction);
 
+    const config: GenerateContentConfig = {
+      candidateCount: 1,
+      safetySettings: this.safetySettings,
+      temperature: this.qualityModelSettings[quality].temperature,
+      topP: this.qualityModelSettings[quality].topP,
+    };
+
+    canGoogle = canGoogle && this.canGoogleSearch(quality);
+
     if (cacheName) {
       this.logger.debug(`Using cache ${cacheName}`);
-    }
+      config.cachedContent = cacheName;
+    } else {
+      config.systemInstruction = systemInstruction;
 
-    canGoogle = canGoogle && !!this.qualityModelSettings[quality].canGoogle;
+      if (canGoogle) {
+        this.logger.debug(`Enabling Google Search tool`);
+        config.tools = [{ googleSearch: {} }];
+      }
+    }
 
     const result = await this.googleGenAI.models.generateContent({
       model: this.qualityModelSettings[quality].model,
       contents,
-      config: {
-        candidateCount: 1,
-        safetySettings: this.safetySettings,
-        systemInstruction,
-        temperature: this.qualityModelSettings[quality].temperature,
-        topP: this.qualityModelSettings[quality].topP,
-        ...(cacheName ? { cachedContent: cacheName } : {}),
-        ...(canGoogle ? { tools: [{ googleSearch: {} }] } : {}),
-      },
+      config,
     });
 
     this.resultSanityCheck(result);
@@ -274,7 +282,7 @@ ${promptText}
 
   public async getTokenCount(
     quality: ModelQualityType,
-    contents: ContentListUnion,
+    contents: ContentListUnion
   ): Promise<number> {
     const response = await this.googleGenAI.models.countTokens({
       model: this.qualityModelSettings[quality].model,
@@ -282,6 +290,14 @@ ${promptText}
     });
 
     return response.totalTokens;
+  }
+
+  public getModelByQuality(quality: ModelQualityType): string {
+    return this.qualityModelSettings[quality].model;
+  }
+
+  public canGoogleSearch(quality: ModelQualityType): boolean {
+    return !!this.qualityModelSettings[quality].canGoogle;
   }
 
   public resultSanityCheck(result: GenerateContentResponse) {

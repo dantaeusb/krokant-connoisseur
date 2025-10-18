@@ -125,6 +125,10 @@ export class PromptService {
     ]);
   }
 
+  /**
+   * @todo: [MED] Limit number of users or total length AND last activity
+   * @param userParticipants
+   */
   public async getPromptForUsersParticipants(
     userParticipants: Array<UserDocument>
   ): Promise<Array<Content>> {
@@ -488,14 +492,14 @@ export class PromptService {
   public formatMessageContent(
     message: MessageDocument,
     user?: UserDocument,
-    responseToUser?: UserDocument,
+    replyToUser?: UserDocument,
     isInThread = false,
     withMessageId = false
   ): string {
     let text = this.getMessageHeader(
       message,
       user,
-      responseToUser,
+      replyToUser,
       isInThread,
       withMessageId
     );

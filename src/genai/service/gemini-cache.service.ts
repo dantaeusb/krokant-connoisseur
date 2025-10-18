@@ -64,31 +64,36 @@ export class GeminiCacheService {
   /**
    * Create a cache for the given chat data.
    * @param chatId
-   * @param type
-   * @param systemPrompt
+   * @param quality
+   * @param systemInstruction
    * @param contents
    * @param messageRange - [startMessageId, endMessageId]
+   * @param canGoogle
    */
   public async createChatCache(
     chatId: number,
-    type: ModelQualityType,
-    systemPrompt: string,
+    quality: ModelQualityType,
+    systemInstruction: string,
     contents: ContentListUnion,
-    messageRange: [number, number]
+    messageRange: [number, number],
+    canGoogle = false
   ): Promise<ChatCacheEntity> {
     this.logger.debug(`Caching chat data for chatId=${chatId}`);
 
+    canGoogle = canGoogle && this.geminiService.canGoogleSearch(quality);
+
     const cache = await this.geminiService.getCaches().create({
-      model: "gemini-2.5-flash",
+      model: this.geminiService.getModelByQuality(quality),
       config: {
         contents,
-        systemInstruction: systemPrompt,
-        displayName: this.getDisplayName(chatId, type),
+        systemInstruction,
+        displayName: this.getDisplayName(chatId, quality),
         ttl: `${GeminiCacheService.CACHE_TTL_SECONDS}s`,
+        ...(canGoogle ? { tools: [{ googleSearch: {} }] } : {}),
       },
     });
 
-    const cacheTracker = await this.chatCacheModel.create({
+    return await this.chatCacheModel.create({
       chatId,
       name: cache.name,
       displayName: cache.displayName,
@@ -97,8 +102,6 @@ export class GeminiCacheService {
       startMessageId: messageRange[0],
       endMessageId: messageRange[1],
     });
-
-    return cacheTracker;
   }
 
   private getDisplayName(chatId: number, type: ModelQualityType): string {
