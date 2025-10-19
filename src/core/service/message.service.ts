@@ -382,7 +382,7 @@ export class MessageService {
       .sort({ date: -1 });
 
     if (fromMessageId) {
-      query.where("messageId").lt(fromMessageId);
+      query.where("messageId").gt(fromMessageId);
     }
 
     if (limit) {

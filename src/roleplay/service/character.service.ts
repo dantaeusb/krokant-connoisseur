@@ -318,7 +318,7 @@ export class CharacterService {
 
     const combinedMessages = Array.from(messageMap.values());
 
-    combinedMessages.sort((a, b) => b.date.getTime() - a.date.getTime());
+    combinedMessages.sort((a, b) => a.date.getTime() - b.date.getTime());
 
     return combinedMessages;
   }
