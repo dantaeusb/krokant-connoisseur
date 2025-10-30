@@ -259,6 +259,59 @@ export class GeminiService {
   }
 
   /*
+   * Images
+   */
+
+  /*public async describeImage(
+    imageData: Uint8Array,
+    systemInstruction?: string
+  ): Promise<Candidate | null> {
+    this.logPromptForDebug(
+      [
+        {
+          parts: [
+            {
+              fileData: {
+                mimeType: "image/png",
+                data: imageData,
+              },
+            },
+          ],
+        },
+      ],
+      systemInstruction
+    );
+
+    const result = await this.googleGenAI.models.generateContent({
+      model: "gemini-2.5-pro",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              fileData: {
+                mimeType: "image/png",
+                data: imageData,
+              },
+            },
+          ],
+        },
+      ],
+      config: {
+        candidateCount: 1,
+        safetySettings: this.safetySettings,
+        systemInstruction,
+        temperature: 0.7,
+        topP: 0.9,
+      },
+    });
+
+    this.resultSanityCheck(result);
+
+    return result.candidates[0] || null;
+  }*/
+
+  /*
    * Utilities
    */
 
@@ -327,6 +380,10 @@ ${promptText}
   }
 
   public resultSanityCheck(result: GenerateContentResponse) {
+    this.logger.log(
+      `Prompt / generated tokens: ${result.usageMetadata.promptTokenCount} / ${result.usageMetadata.candidatesTokenCount}`
+    );
+
     if (result.usageMetadata.promptTokenCount > 128000) {
       this.logger.warn(
         `High token usage: ${result.usageMetadata.promptTokenCount}`

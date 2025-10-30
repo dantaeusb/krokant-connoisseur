@@ -271,15 +271,25 @@ export class MessageService {
   public async recordMessage(
     context: Context<Update.MessageUpdate>
   ): Promise<MessageDocument | void> {
-    if (!context.message || !context.text) {
+    if (!context.message) {
       return;
+    }
+
+    let text = context.text;
+
+    if ("photo" in context.message) {
+      if (!text || text.trim().length === 0) {
+        text = "[Photo]";
+      } else {
+        text = "[Photo]" + text;
+      }
     }
 
     const message: MessageEntity = {
       chatId: context.chat.id,
       messageId: context.message.message_id,
       userId: context.message.from.id,
-      text: context.text,
+      text: text,
       date: new Date(context.message.date * 1000),
       conversationIds: null,
     };

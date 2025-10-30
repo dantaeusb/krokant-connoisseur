@@ -44,16 +44,13 @@ export class LoggingController {
   }
 
   @On("message")
+  //@On("photo")
   public async recordMessage(
     @Ctx()
     context: Context<TelegramUpdate.MessageUpdate>,
     @Next() next: () => Promise<void>
   ): Promise<void> {
     this.logger.debug("Handling message for logging");
-
-    if (!context.text) {
-      return next();
-    }
 
     this.userService
       .updateLastActivity(context.chat.id, context.from.id)

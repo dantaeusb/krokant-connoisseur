@@ -412,7 +412,25 @@ export class CharacterController {
     }
   }
 
-  @Command("test")
+  @Command("reload")
+  @UseGuards(AdminGuard)
+  async reload(
+    @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
+    @Next() next: () => Promise<void>
+  ): Promise<void> {
+    try {
+      await this.characterService.reloadCacheForChat(context.chat.id);
+    } catch (error) {
+      this.logger.error("Failed to reload chat cache", error);
+      context.react("🤷‍♀").catch((err: Error) => {
+        this.logger.error("Failed to react to /reload command", err);
+      });
+    }
+
+    await next();
+  }
+
+  /*@Command("test")
   @UseGuards(AdminGuard)
   async test(
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
@@ -432,23 +450,5 @@ export class CharacterController {
     this.logger.debug("Handling /check command");
 
     await this.conversationService.retrieveBatchResults(context.chat.id);
-  }
-
-  @Command("reload")
-  @UseGuards(AdminGuard)
-  async reload(
-    @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
-    @Next() next: () => Promise<void>
-  ): Promise<void> {
-    try {
-      await this.characterService.reloadCacheForChat(context.chat.id);
-    } catch (error) {
-      this.logger.error("Failed to reload chat cache", error);
-      context.react("🤷‍♀").catch((err: Error) => {
-        this.logger.error("Failed to react to /reload command", err);
-      });
-    }
-
-    await next();
-  }
+  }*/
 }

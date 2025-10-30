@@ -300,11 +300,14 @@ export class CharacterService {
       const chatConfig = await this.configService.getConfig(chatId);
 
       const [
+        users,
+        currentConversationContext,
         characterPrompt,
         commandsPrompt,
         participantsPrompt,
         rephrasePrompt,
       ] = await Promise.all([
+        this.userService.getActiveUsersInChat(chatId, 5),
         this.collectConversationContext(chatId, messageId, 30),
         this.promptService.getPromptFromChatCharacter(chatId),
         this.promptService.getPromptForCommands(),
@@ -314,10 +317,25 @@ export class CharacterService {
         this.promptService.getPromptForRephrase(text, toUser),
       ]);
 
+      const promptThreadChain: Array<Content> =
+        this.promptService.getPromptFromMessages(
+          currentConversationContext,
+          users
+        );
+
       const promptList: Array<Content> = [
         ...characterPrompt,
         ...commandsPrompt,
         ...participantsPrompt,
+        {
+          role: "user",
+          parts: [
+            {
+              text: "***\n\nThose are all the previous messages from this chat that were not summarized yet. After that, you will be provided with current messages and a task below.\n\n",
+            },
+          ],
+        },
+        ...promptThreadChain,
         ...rephrasePrompt,
       ];
 
@@ -342,66 +360,6 @@ export class CharacterService {
       );
       return text;
     }
-  }
-
-  private async solveChatContext(
-    chatId: number,
-    messageId: number,
-    text: string,
-    users: Array<UserDocument>
-  ): Promise<boolean> {
-    this.logger.debug(
-      `Solving context requirements for chatId=${chatId} with message="${text}"`
-    );
-
-    const config = await this.configService.getConfig(chatId);
-
-    const currentConversationContext = await this.collectConversationContext(
-      chatId,
-      messageId,
-      30
-    );
-
-    if (!users) {
-      users = await this.userService.getParticipants(
-        chatId,
-        currentConversationContext
-      );
-    }
-
-    const [characterPrompt, participantsPrompt] = await Promise.all([
-      this.promptService.getPromptFromChatCharacter(chatId),
-      this.promptService.getPromptForUsersParticipants(users),
-    ]);
-
-    const contents: Array<Content> = [
-      ...characterPrompt,
-      ...participantsPrompt,
-      ...this.promptService.getPromptFromMessages(
-        currentConversationContext.reverse(),
-        users,
-        false
-      ),
-      {
-        role: "user",
-        parts: [
-          {
-            text:
-              "Classify whether extended content is required to respond to the message below. It is usually required when a summary of past events needed or someone referring an activity:\n" +
-              `"${text}"`,
-          },
-        ],
-      },
-    ];
-
-    const result = await this.geminiService.quickClassifyEnum(
-      contents,
-      ["yes", "no"],
-      "Yes if there is enough context to answer the message based on the conversation history provided above, or more messages need to be loaded?",
-      config.answerStrategySystemPrompt
-    );
-
-    return result === "yes";
   }
 
   public async reloadCacheForChat(
