@@ -492,8 +492,71 @@ export class ModerationController {
         if (!isEdited) {
           this.translationService
             .translateText(context.text)
-            .then((translatedText) => {
+            .then(async (translatedText) => {
               if (translatedText) {
+                const hasProfanity =
+                  this.profanityCheckService.containsProfanity(
+                    context.chat.id,
+                    translatedText
+                  );
+
+                if (hasProfanity) {
+                  // @todo: [HIGH] Warn moderator if not deleted?
+                  void context.deleteMessage(context.message.message_id);
+
+                  const result = await this.moderationService.warnUser(
+                    context.chat.id,
+                    context.from.id,
+                    undefined,
+                    "For not learning which words not to use"
+                  );
+
+                  const user = await this.userService.getUser(
+                    context.chat.id,
+                    context.from.id,
+                    context.from
+                  );
+
+                  const name = user?.name || "User";
+
+                  if (result === WarnResult.WARNED) {
+                    await this.reply(
+                      context,
+                      message,
+                      `${name} has been warned for using profanity.`
+                    ).catch((error) => {
+                      this.logger.error(
+                        "Failed to send acknowledge for warn on profanity:",
+                        error
+                      );
+                    });
+                  } else if (result === WarnResult.MUTED) {
+                    await this.reply(
+                      context,
+                      message,
+                      `${name} has been banned due using profanity after reaching the warning limit.`
+                    ).catch((error) => {
+                      this.logger.error(
+                        "Failed to send acknowledge for ban on profanity:",
+                        error
+                      );
+                    });
+                  } else {
+                    await this.reply(
+                      context,
+                      message,
+                      "Failed to issue a warning."
+                    ).catch((error) => {
+                      this.logger.error(
+                        "Failed to send acknowledge for ban on profanity:",
+                        error
+                      );
+                    });
+                  }
+
+                  return;
+                }
+
                 this.messageService
                   .sendMessage(context.chat.id, translatedText, {
                     reply_parameters: {

@@ -6,7 +6,7 @@ import { InjectModel } from "@nestjs/mongoose";
 import { InjectBot } from "nestjs-telegraf";
 import { Model, pluralize } from "mongoose";
 import { BotName } from "@/app.constants";
-import { MessageDocument, MessageEntity } from "@core/entity/message.entity";
+import { MessageDocument, MessageEntity, MessageFileType } from "@core/entity/message.entity";
 import { ConfigService } from "./config.service";
 import { UserService } from "./user.service";
 import { FormatterService } from "./formatter.service";
@@ -275,6 +275,8 @@ export class MessageService {
       return;
     }
 
+    let fileType: MessageFileType;
+    let uniqueFileId: string;
     let text = context.text;
 
     if ("photo" in context.message) {
@@ -283,6 +285,81 @@ export class MessageService {
       } else {
         text = "[Photo]" + text;
       }
+
+      fileType = "photo";
+      uniqueFileId = context.message.photo[0].file_unique_id;
+    }
+
+    if ("sticker" in context.message) {
+      if (!text || text.trim().length === 0) {
+        text = "[Sticker]";
+      } else {
+        text = "[Sticker]" + text;
+      }
+
+      fileType = "sticker";
+      uniqueFileId = context.message.sticker.file_unique_id;
+    }
+
+    if ("video" in context.message) {
+      if (!text || text.trim().length === 0) {
+        text = "[Video]";
+      } else {
+        text = "[Video]" + text;
+      }
+
+      fileType = "video";
+      uniqueFileId = context.message.video.file_unique_id;
+    }
+
+    if ("audio" in context.message) {
+      if (!text || text.trim().length === 0) {
+        text = "[Audio]";
+      } else {
+        text = "[Audio]" + text;
+      }
+
+      fileType = "audio";
+      uniqueFileId = context.message.audio.file_unique_id;
+    }
+
+    if ("voice" in context.message) {
+      if (!text || text.trim().length === 0) {
+        text = "[Voice Message]";
+      } else {
+        text = "[Voice Message]" + text;
+      }
+
+      fileType = "voice";
+      uniqueFileId = context.message.voice.file_unique_id;
+    }
+
+    if ("video_note" in context.message) {
+      if (!text || text.trim().length === 0) {
+        text = "[Video Note]";
+      } else {
+        text = "[Video Note]" + text;
+      }
+
+      fileType = "video";
+      uniqueFileId = context.message.video_note.file_unique_id;
+    }
+
+    if ("document" in context.message) {
+      if (!text || text.trim().length === 0) {
+        text = "[Document]";
+      } else {
+        text = "[Document]" + text;
+      }
+
+      uniqueFileId = context.message.document.file_unique_id;
+    }
+
+    if (!text || text.trim().length === 0) {
+      this.logger.log(
+        "Unsupported message type or empty text, skipping recording."
+      );
+      return;
     }
 
     const message: MessageEntity = {
@@ -291,6 +368,8 @@ export class MessageService {
       userId: context.message.from.id,
       text: text,
       date: new Date(context.message.date * 1000),
+      fileType: fileType,
+      fileUniqueId: uniqueFileId,
       conversationIds: null,
     };
 

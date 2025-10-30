@@ -1,7 +1,15 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { HydratedDocument, Types } from "mongoose";
 
-export type MessageDocument = HydratedDocument<MessageEntity>
+export type MessageDocument = HydratedDocument<MessageEntity>;
+
+export type MessageFileType =
+  | "photo"
+  | "sticker"
+  | "video"
+  | "audio"
+  | "voice"
+  | "document";
 
 @Schema({ timestamps: true })
 export class MessageEntity {
@@ -21,6 +29,15 @@ export class MessageEntity {
 
   @Prop({ required: true })
   text: string;
+
+  @Prop()
+  fileDescription?: string;
+
+  @Prop()
+  fileType?: MessageFileType;
+
+  @Prop()
+  fileUniqueId?: string;
 
   @Prop({ default: Date.now })
   date: Date;

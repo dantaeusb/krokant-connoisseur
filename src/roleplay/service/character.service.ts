@@ -362,6 +362,71 @@ export class CharacterService {
     }
   }
 
+  public async greet(
+    chatId: number,
+    toUser?: UserDocument
+  ): Promise<string | undefined> {
+    try {
+      const chatConfig = await this.configService.getConfig(chatId);
+
+      const [
+        users,
+        currentConversationContext,
+        characterPrompt,
+        commandsPrompt,
+        greetPrompt,
+      ] = await Promise.all([
+        this.userService.getActiveUsersInChat(chatId, 50),
+        this.collectConversationContext(chatId, undefined, 50),
+        this.promptService.getPromptFromChatCharacter(chatId),
+        this.promptService.getPromptForCommands(),
+        this.promptService.getPromptForGreet(toUser),
+      ]);
+
+      const promptThreadChain: Array<Content> =
+        this.promptService.getPromptFromMessages(
+          currentConversationContext,
+          users
+        );
+
+      const promptList: Array<Content> = [
+        ...characterPrompt,
+        ...commandsPrompt,
+        {
+          role: "user",
+          parts: [
+            {
+              text: "***\n\nThose are all the previous messages from this chat that were not summarized yet. After that, you will be provided with current messages and a task below.\n\n",
+            },
+          ],
+        },
+        ...promptThreadChain,
+        ...greetPrompt,
+      ];
+
+      const candidate = await this.geminiService.generate(
+        "low",
+        promptList,
+        chatConfig.characterSystemPrompt
+      );
+
+      if (!candidate) {
+        return;
+      }
+
+      let answer = candidate.content.parts.map((part) => part.text).join("\n");
+      answer = answer.replace(/^>+/g, "");
+
+      return answer;
+    } catch (error) {
+      this.logger.error(
+        `Failed to greet user in chatId=${chatId}: ${error.message}`,
+        error
+      );
+      return;
+    }
+  }
+
   public async reloadCacheForChat(
     chatId: number,
     quality?: ModelQualityType
@@ -391,7 +456,7 @@ export class CharacterService {
    */
   private async collectConversationContext(
     chatId: number,
-    messageId: number,
+    messageId?: number,
     limit = 10000,
     fromMessageId?: number
   ): Promise<Array<MessageDocumentWithChain>> {
@@ -400,7 +465,7 @@ export class CharacterService {
       Array<MessageDocumentWithChain>
     ] = await Promise.all([
       this.messageService.getUnprocessedMessages(chatId, limit, fromMessageId),
-      this.messageService.getMessageChain(chatId, messageId),
+      messageId ? this.messageService.getMessageChain(chatId, messageId) : [],
     ]);
 
     chain.forEach((message) => {

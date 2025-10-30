@@ -18,36 +18,26 @@ export class ProfanityCheckService {
 
     const triggeredFilters = config.profanityFilters.filter(
       (filter: ProfanityFilterEntity) => {
-        if (filter.type === "text") {
-          // @todo: [LOW] Better ways to do type check
-          return words.some(
-            (word) => word.toLowerCase().indexOf(filter.filter as string) !== -1
-          );
-        }/* else if (filter.type === "regexp") {
-          if (!(filter.filter instanceof RegExp)) {
+        const hasWord = words.some(
+          (word) => word.toLowerCase().indexOf(filter.filter as string) !== -1
+        );
+
+        if (hasWord) {
+          return true;
+        }
+
+        if (filter.regexp) {
+          try {
+            return new RegExp(filter.regexp).test(text);
+          } catch (error) {
             this.logger.error(
-              `Profanity filter is not a valid RegExp: ${filter.filter}`
+              `Invalid regexp in profanity filter: ${filter.regexp}`,
+              error
             );
-
-            try {
-              const match = (filter.filter as string).match(
-                new RegExp("^\/(.*?)\/(.*)$")
-              );
-              if (match) {
-                filter.filter = new RegExp(match[1], match[2]);
-              } else {
-                filter.filter = new RegExp(filter.filter as string);
-              }
-
-              return words.some((word) => (filter.filter as RegExp).test(word));
-            } catch (e) {
-              this.logger.error("Failed to parse regexp", filter.filter, e);
-              return false;
-            }
-          } else {
-            return words.some((word) => (filter.filter as RegExp).test(word));
           }
-        }*/
+        }
+
+        return false;
       }
     );
 

@@ -242,7 +242,7 @@ export class PromptService {
     warns = warns.filter((w) => w !== null);
     bans = bans.filter((b) => b !== null);
 
-    let userStatusesText = '';
+    let userStatusesText = "";
 
     userParticipants.forEach((user) => {
       const warn = warns.find((w) => w.userId === user.userId);
@@ -333,6 +333,29 @@ export class PromptService {
               `Do not mention your task to rephrase:\n` +
               `\n` +
               text,
+          },
+        ],
+      },
+    ];
+  }
+
+  public getPromptForGreet(toUser?: UserDocument): Array<Content> {
+    // @todo: [HIGH] Use trigger words from config
+    return [
+      {
+        role: "user",
+        parts: [
+          {
+            text:
+              `A new user just joined the chat ${
+                toUser ? `: ${toUser.name}` : ""
+              }\n` +
+              `Using chat information, tell them about the chat, activities` +
+              ` happening here, and greet them according to your character.\n` +
+              `Do not mention your task to greet. If there's an ongoing conversation` +
+              ` make sure to mention it briefly.\n` +
+              `Always mention that you will track messages and the way to opt out.\n` +
+              `Explain that you can be called with @grok to respond to messages.\n`,
           },
         ],
       },

@@ -44,7 +44,6 @@ export class LoggingController {
   }
 
   @On("message")
-  //@On("photo")
   public async recordMessage(
     @Ctx()
     context: Context<TelegramUpdate.MessageUpdate>,
