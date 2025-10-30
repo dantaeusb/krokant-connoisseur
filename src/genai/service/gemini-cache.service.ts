@@ -5,6 +5,7 @@ import { Model } from "mongoose";
 import { GeminiService } from "@genai/service/gemini.service";
 import { ContentListUnion } from "@google/genai";
 import { ModelQualityType } from "@genai/types/model-quality.type";
+import { ContextWindowType } from "@roleplay/types/context-window.type";
 
 @Injectable()
 export class GeminiCacheService {
@@ -20,9 +21,10 @@ export class GeminiCacheService {
 
   public async getChatCache(
     chatId: number,
-    type: ModelQualityType
+    type: ModelQualityType,
+    contextWindow: ContextWindowType = "extended"
   ): Promise<ChatCacheEntity | null> {
-    const displayName = this.getDisplayName(chatId, type);
+    const displayName = this.getDisplayName(chatId, type, contextWindow);
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 5);
 
@@ -36,13 +38,18 @@ export class GeminiCacheService {
 
   public async deleteChatCache(
     chatId: number,
-    type: ModelQualityType
+    type: ModelQualityType,
+    contextWindow: ContextWindowType = "extended"
   ): Promise<void> {
-    const displayName = this.getDisplayName(chatId, type);
+    const displayName = this.getDisplayName(chatId, type, contextWindow);
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 5);
 
     const cacheTracker = await this.chatCacheModel.findOne({
       chatId,
       displayName,
+      deleted: { $ne: true },
+      expiresAt: { $gt: expiresAt },
     });
 
     if (cacheTracker) {
@@ -65,6 +72,7 @@ export class GeminiCacheService {
    * Create a cache for the given chat data.
    * @param chatId
    * @param quality
+   * @param contextWindow
    * @param systemInstruction
    * @param contents
    * @param messageRange - [startMessageId, endMessageId]
@@ -73,6 +81,7 @@ export class GeminiCacheService {
   public async createChatCache(
     chatId: number,
     quality: ModelQualityType,
+    contextWindow: ContextWindowType,
     systemInstruction: string,
     contents: ContentListUnion,
     messageRange: [number, number],
@@ -87,7 +96,7 @@ export class GeminiCacheService {
       config: {
         contents,
         systemInstruction,
-        displayName: this.getDisplayName(chatId, quality),
+        displayName: this.getDisplayName(chatId, quality, contextWindow),
         ttl: `${GeminiCacheService.CACHE_TTL_SECONDS}s`,
         ...(canGoogle ? { tools: [{ googleSearch: {} }] } : {}),
       },
@@ -104,7 +113,11 @@ export class GeminiCacheService {
     });
   }
 
-  private getDisplayName(chatId: number, type: ModelQualityType): string {
-    return `ChatCache_${chatId}_${type}`;
+  private getDisplayName(
+    chatId: number,
+    type: ModelQualityType,
+    contextWindow: ContextWindowType
+  ): string {
+    return `ChatCache_${chatId}_${type}_${contextWindow}`;
   }
 }

@@ -82,7 +82,10 @@ export class ChatConfigEntity {
    * This will be used as a system prompt for the summaries generation
    * when messages are over context or lifetime limit.
    */
-  @Prop({ default: "" })
+  @Prop({
+    default:
+      "As an independent part of the chatbot system, summarize and rate the given messages neutrally in a manner that is the most useful for the chatbot roleplay model",
+  })
   summarizerSystemPrompt: string;
 
   @Prop({ default: false })

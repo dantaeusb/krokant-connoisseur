@@ -13,8 +13,16 @@ import { GeminiService } from "@genai/service/gemini.service";
 import { PromptService } from "@roleplay/service/prompt.service";
 import { MessageDocument } from "@core/entity/message.entity";
 import { MessageDocumentWithChain } from "@roleplay/type/message-with-chain";
-import { Content } from "@google/genai";
+import { Content, Schema as GenAiOpenApiSchema, Type } from "@google/genai";
 import { UserDocument } from "@core/entity/user.entity";
+
+type StrategyClassificationResponse = {
+  strategies: Array<{
+    strategy: string;
+    weight: number;
+  }>;
+  needExtraContext: boolean;
+}
 
 @Injectable()
 export class AnswerStrategyService implements OnModuleInit {
@@ -167,26 +175,25 @@ export class AnswerStrategyService implements OnModuleInit {
    * Will use short-term no-cached context and quick model to classify the message.
    * @param chatId
    * @param messageId
-   * @param message
+   * @param text
    * @param users
    */
   public async solveChatStrategy(
     chatId: number,
     messageId: number,
-    message: string,
+    text: string,
     users?: Array<UserDocument>
-  ): Promise<AnswerStrategyDocument | null> {
+  ): Promise<StrategyClassificationResponse> {
     this.logger.debug(
-      `Solving strategy for chatId=${chatId} with message="${message}"`
+      `Solving strategy for chatId=${chatId} with message="${text}"`
     );
 
     const config = await this.configService.getConfig(chatId);
 
-    const { strategyCodes, descriptions } =
-      await this.getChatStrategyClassificationRequest(chatId);
-
-    const currentConversationContext =
-      await this.collectCurrentConversationContext(chatId, messageId);
+    const [strategies, currentConversationContext] = await Promise.all([
+      this.getChatStrategies(chatId),
+      this.collectCurrentConversationContext(chatId, messageId),
+    ]);
 
     if (!users) {
       users = await this.userService.getParticipants(
@@ -214,24 +221,23 @@ export class AnswerStrategyService implements OnModuleInit {
           {
             text:
               "Classify the best possible strategy to respond to the following message:\n" +
-              `"${message}"`,
+              `"${text}"`,
           },
         ],
       },
     ];
 
-    const result = await this.geminiService.quickClassify(
+    const result = await this.geminiService.quickClassifyJson(
       contents,
-      strategyCodes,
-      descriptions,
+      this.getStrategySchema(strategies),
       config.answerStrategySystemPrompt
     );
 
-    this.logger.debug(
-      `Strategy classification result for chatId=${chatId}: ${result}`
+    const classificationResponse: StrategyClassificationResponse = JSON.parse(
+      result.content.parts.map((part) => part.text || "").join("\n") ?? null
     );
 
-    return await this.getStrategy(chatId, result);
+    return classificationResponse;
   }
 
   /*
@@ -243,21 +249,6 @@ export class AnswerStrategyService implements OnModuleInit {
     const config = await this.configService.getConfig(chatId);
 
     return config.answerStrategies;
-  }
-
-  public async getChatStrategyClassificationRequest(
-    chatId: number
-  ): Promise<StrategyResponse> {
-    const strategy = await this.getChatStrategies(chatId);
-
-    const descriptions = strategy
-      .map((s) => `- ${s.strategyCode}: ${s.strategyClassificationDescription}`)
-      .join("\n");
-
-    return {
-      strategyCodes: strategy.map((s) => s.strategyCode),
-      descriptions: descriptions,
-    };
   }
 
   public async getStrategy(
@@ -289,6 +280,7 @@ export class AnswerStrategyService implements OnModuleInit {
    */
 
   /**
+   * @todo: [HIGH]: Deduplicate with CharacterService method
    * Short-term context collection for strategy classification
    * @param chatId
    * @param messageId
@@ -333,9 +325,54 @@ export class AnswerStrategyService implements OnModuleInit {
 
     return combinedMessages;
   }
-}
 
-type StrategyResponse = {
-  strategyCodes: Array<string>;
-  descriptions: string;
-};
+  private getStrategySchema(
+    strategies: Array<AnswerStrategyDocument>
+  ): GenAiOpenApiSchema {
+    const descriptions = strategies
+      .map((s) => `- ${s.strategyCode}: ${s.strategyClassificationDescription}`)
+      .join("\n");
+
+    return {
+      type: Type.OBJECT,
+      properties: {
+        strategies: {
+          type: Type.ARRAY,
+          description:
+            "An array of possible answer strategies with their confidence weights.",
+          example: [
+            { strategy: "conversation", weight: 0.8 },
+            { strategy: "ignore", weight: 0.1 },
+          ],
+          minItems: "2",
+          maxItems: "5",
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              strategy: {
+                type: Type.STRING,
+                enum: strategies.map((s) => s.strategyCode),
+                description: `The code of the selected strategy. Possible values:\n${descriptions}`,
+                example: "conversation",
+              },
+              weight: {
+                type: Type.NUMBER,
+                minimum: 0,
+                maximum: 1,
+                description:
+                  "The confidence weight of the selected strategy (0.0 to 1.0).",
+                example: 0.85,
+              },
+            },
+          },
+        },
+        needExtraContext: {
+          type: Type.BOOLEAN,
+          description:
+            "True if provided context window is sufficient, false if more history might be needed to answer the message.",
+          example: false,
+        },
+      },
+    } as const satisfies GenAiOpenApiSchema;
+  }
+}

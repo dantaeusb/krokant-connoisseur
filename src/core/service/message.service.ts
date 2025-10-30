@@ -20,12 +20,6 @@ export class MessageService {
   public static readonly HIDDEN_MESSAGE_TEXT = "[Hidden by user preference]";
 
   /**
-   * If there are less messages than this threshold in the summarization window,
-   * we won't summarize them yet.
-   */
-  public static readonly MESSAGE_SUMMARIZATION_THRESHOLD = 700;
-
-  /**
    * Telegram message length limit. If message exceeds this length, it needs to be
    * split into multiple messages. We'll try to split on sensible boundaries,
    * first trying double newlines, then single newlines, then sentence-ending
@@ -231,6 +225,17 @@ export class MessageService {
     });
   }
 
+  public async getMessages(
+    chatId: number,
+    fromMessageId: number,
+    toMessageId: number
+  ): Promise<Array<MessageDocument>> {
+    return this.messageEntityModel.findOne({
+      chatId: chatId,
+      messageId: { $gte: fromMessageId, $lte: toMessageId },
+    });
+  }
+
   public async updateMessage(
     context: Context<Update.EditedMessageUpdate>
   ): Promise<MessageDocument | void> {
@@ -371,8 +376,8 @@ export class MessageService {
 
   public async getUnprocessedMessages(
     chatId: number,
-    fromMessageId?: number,
-    limit?: number
+    limit?: number,
+    fromMessageId?: number
   ): Promise<Array<MessageDocument>> {
     const query = this.messageEntityModel
       .find({
@@ -407,22 +412,20 @@ export class MessageService {
 
   public async getOldestUnprocessedMessages(
     chatId: number,
-    limit: number
+    limit?: number
   ): Promise<Array<MessageDocument>> {
-    const messages = await this.messageEntityModel
+    const query = this.messageEntityModel
       .find({
         chatId: chatId,
         conversationIds: null,
       })
-      .sort({ date: 1 })
-      .limit(limit)
-      .exec();
+      .sort({ date: 1 });
 
-    if (messages.length < MessageService.MESSAGE_SUMMARIZATION_THRESHOLD) {
-      return [];
+    if (limit) {
+      query.limit(limit);
     }
 
-    return messages;
+    return query.exec();
   }
 
   public async addConversationIdToMessages(

@@ -90,6 +90,10 @@ export class GeminiService {
     return this.googleGenAI.caches;
   }
 
+  public getSafetySettings(): Array<SafetySetting> {
+    return this.safetySettings;
+  }
+
   /*
    * Content generation on-demand with different quality levels
    */
@@ -146,7 +150,7 @@ export class GeminiService {
    * @param prompt
    * @param systemInstruction
    */
-  public async summarizeAndRate(
+  public async goodClassifyJson(
     contents: ContentListUnion,
     responseSchema: Schema,
     systemInstruction?: string
@@ -172,7 +176,33 @@ export class GeminiService {
     return result.candidates[0];
   }
 
-  public async quickClassify(
+  public async quickClassifyJson(
+    contents: ContentListUnion,
+    responseSchema: Schema,
+    systemInstruction: string
+  ): Promise<Candidate> {
+    this.logPromptForDebug(contents, systemInstruction);
+
+    const result = await this.googleGenAI.models.generateContent({
+      model: "gemini-2.5-flash-lite",
+      contents,
+      config: {
+        candidateCount: 1,
+        safetySettings: this.safetySettings,
+        systemInstruction,
+        temperature: 0.0,
+        topP: 1.0,
+        responseMimeType: "application/json",
+        responseSchema,
+      },
+    });
+
+    this.resultSanityCheck(result);
+
+    return result.candidates[0];
+  }
+
+  public async quickClassifyEnum(
     contents: ContentListUnion,
     enumValues: Array<string>,
     description: string,
@@ -211,25 +241,21 @@ export class GeminiService {
    * Batch
    */
 
-  public async batchGood(
-    prompts: Array<ContentListUnion>,
-    systemPrompt?: string
-  ) {
-    /*const result = await this.googleGenAI.batches.create({
+  public async batchGood(src: string, dest: string, displayName?: string) {
+    return this.googleGenAI.batches.create({
       model: "gemini-2.5-pro",
-      batchContents: prompts,
+      src,
       config: {
-        candidateCount: 1,
-        safetySettings: this.safetySettings,
-        systemInstruction: systemPrompt ?? GeminiService.FALLBACK_SYSTEM_PROMPT,
-        temperature: 1.5,
-        topP: 0.85,
+        dest,
+        displayName,
       },
     });
+  }
 
-    result.results.forEach((res) => this.resultSanityCheck(res));
-
-    return result.results.map((res) => res.candidates[0]);*/
+  public async getBatchJob(batchName: string) {
+    return await this.googleGenAI.batches.get({
+      name: batchName,
+    });
   }
 
   /*

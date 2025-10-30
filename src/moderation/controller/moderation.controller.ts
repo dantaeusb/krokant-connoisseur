@@ -91,6 +91,13 @@ export class ModerationController {
             description: "Check your bans",
             detailedDescription: "Allows users to show their last ban severity",
           },
+          {
+            forModule: "Moderation",
+            command: "penis",
+            description: "<duration> Self mute",
+            detailedDescription:
+              "Allows users to mute themselves for up to a day to lock in",
+          },
         ],
         "Moderation"
       ),
@@ -296,6 +303,53 @@ export class ModerationController {
     const name = this.userService.getSafeUserName(targetUser);
 
     await this.reply(context, message, `${name} has been unbanned.`);
+  }
+
+  /**
+   * Pardon command not only unbans, but also decreases severity,
+   * invalidating previous bans.
+   * @param context
+   * @param message
+   */
+  @Command("pardon")
+  @UseGuards(AdminGuard)
+  async pardonCommand(
+    @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
+    @Message() message: TelegramUpdate.MessageUpdate["message"]
+  ): Promise<void> {
+    this.logger.debug("Handling /unban command");
+
+    const targetUserId = await this.messageService.getTargetUserFromMessage(
+      context
+    );
+
+    if (!targetUserId) {
+      this.logger.error("Could not find target user to unban.");
+      void context.react("🤷‍♂").catch((error) => {
+        this.logger.error("Failed to react to message:", error);
+      });
+      return;
+    }
+
+    try {
+      await this.moderationService.unbanUser(message.chat.id, targetUserId);
+    } catch (error) {
+      this.logger.error("Error unbanning user:", error);
+      void context.react("🤷‍♂").catch((error) => {
+        this.logger.error("Failed to react to message:", error);
+      });
+      return;
+    }
+
+    const targetUser = await this.userService.getUser(
+      context.chat.id,
+      targetUserId,
+      context.from
+    );
+
+    const name = this.userService.getSafeUserName(targetUser);
+
+    await this.reply(context, message, `${name} has been pardoned.`);
   }
 
   /**
@@ -712,6 +766,7 @@ export class ModerationController {
 
       answer = await this.characterService.rephrase(
         context.chat.id,
+        message.from.id,
         answer,
         toUser
       );

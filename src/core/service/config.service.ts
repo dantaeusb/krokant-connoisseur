@@ -24,7 +24,7 @@ export class ConfigService implements OnModuleInit {
     @InjectModel(ChatConfigEntity.COLLECTION_NAME)
     private configModel: Model<ChatConfigEntity>
   ) {
-    void this.reloadConfig();
+    void this.reload();
   }
 
   /**
@@ -44,11 +44,11 @@ export class ConfigService implements OnModuleInit {
     });
   }
 
-  public async reloadConfig(chatId?: number) {
+  public async reload(chatId?: number) {
     let searchCriteria = {};
 
     if (chatId) {
-      searchCriteria = { chatId: chatId.toString() };
+      searchCriteria = { chatId: chatId };
       this.configCache.delete(chatId);
     } else {
       this.configCache.clear();

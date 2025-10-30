@@ -1,11 +1,14 @@
 import { Module } from "@nestjs/common";
-import { GeminiService } from "./service/gemini.service";
 import { MongooseModule } from "@nestjs/mongoose";
+import { CoreModule } from "@core/core.module";
+import { GeminiService } from "./service/gemini.service";
+import { ChatCacheEntity, ChatCacheSchema } from "./entity/chat-cache.entity";
+import { GeminiCacheService } from "./service/gemini-cache.service";
+import { BatchService } from "./service/batch.service";
 import {
-  ChatCacheEntity,
-  ChatCacheSchema,
-} from "@genai/entity/chat-cache.entity";
-import { GeminiCacheService } from "@genai/service/gemini-cache.service";
+  ChatBatchEntity,
+  ChatBatchSchema,
+} from "@genai/entity/chat-batch.entity";
 
 @Module({
   imports: [
@@ -15,9 +18,14 @@ import { GeminiCacheService } from "@genai/service/gemini-cache.service";
         name: ChatCacheEntity.COLLECTION_NAME,
         schema: ChatCacheSchema,
       },
+      {
+        name: ChatBatchEntity.COLLECTION_NAME,
+        schema: ChatBatchSchema,
+      },
     ]),
+    CoreModule,
   ],
-  providers: [GeminiService, GeminiCacheService],
-  exports: [GeminiService, GeminiCacheService],
+  providers: [GeminiService, GeminiCacheService, BatchService],
+  exports: [GeminiService, GeminiCacheService, BatchService],
 })
 export class GenAiModule {}

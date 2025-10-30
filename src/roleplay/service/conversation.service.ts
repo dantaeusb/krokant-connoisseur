@@ -7,22 +7,26 @@ import { MessageService } from "@core/service/message.service";
 import { UserService } from "@core/service/user.service";
 import { PersonService } from "@roleplay/service/person.service";
 import { MessageDocument } from "@core/entity/message.entity";
-import {
-  Candidate,
-  Content,
-  Schema as GenAiOpenApiSchema,
-  Type,
-} from "@google/genai";
+import { Content, Schema as GenAiOpenApiSchema, Type } from "@google/genai";
 import { PromptService } from "@roleplay/service/prompt.service";
 import { UserDocument } from "@core/entity/user.entity";
 import {
   ConversationDocument,
   ConversationEntity,
 } from "@roleplay/entity/conversation.entity";
-
 import { CounterService } from "@core/service/counter.service";
 import { Cron } from "@nestjs/schedule";
 import { PersonThoughtEntity } from "@roleplay/entity/person/thought.entity";
+import { BatchService } from "@genai/service/batch.service";
+import {
+  ChatBatchDocument,
+  ChatBatchEntity,
+} from "@genai/entity/chat-batch.entity";
+import {
+  GENAI_JOB_STATES_FAILED,
+  GENAI_JOB_STATES_PROGRESS,
+  GENAI_JOB_STATES_SUCCESS,
+} from "@genai/const/job-states.const";
 
 type SummarizationResponse = {
   conversations: Array<{
@@ -47,12 +51,19 @@ type SummarizationResponse = {
 };
 
 /**
- * @todo: [HIGH] Use Batch API to reduce costs – there's no need to do this job real time
+ * Service to process conversations from message history
+ * and extract structured conversation data.
+ *
+ * It uses Vertex AI batch processing to analyze message clusters
+ * asynchronously, using GCP buckets to store conversations and
+ * Batch Jobs to process them.
+ *
+ * Extracted conversations are stored in the database
+ * and linked to messages.
  */
 @Injectable()
 export class ConversationService {
-  private static MAX_CONVERSATION_GAP_MS = 1000 * 60 * 60 * 24; // 4 hours
-  private static MAX_RUNS_PER_HOUR = 10;
+  private static MIN_TOKENS_FOR_BATCH = 25000;
 
   private logger: Logger = new Logger("Roleplay/ConversationService");
 
@@ -62,6 +73,7 @@ export class ConversationService {
     private readonly configService: ConfigService,
     private readonly counterService: CounterService,
     private readonly geminiService: GeminiService,
+    private readonly batchService: BatchService,
     private readonly messageService: MessageService,
     private readonly userService: UserService,
     private readonly personService: PersonService,
@@ -89,17 +101,42 @@ export class ConversationService {
       .exec();
   }
 
-  public async processOldestUnprocessedConversation(
+  @Cron("0 */6 * * *")
+  public async batchMessages(chatId?: number): Promise<void> {
+    let chatIds: Array<number>;
+
+    if (chatId) {
+      chatIds = [chatId];
+    } else {
+      chatIds = await this.configService.getAllChatIds();
+    }
+
+    for (const chatId of chatIds) {
+      try {
+        await this.batchChatMessages(chatId);
+
+        this.logger.log(`Batched messages for chat ${chatId}`);
+      } catch (err) {
+        this.logger.error(
+          `Error  batching messages for chat ${chatId}: ${err.message}`,
+          err.stack
+        );
+        break;
+      }
+    }
+  }
+
+  public async batchChatMessages(
     chatId: number,
-    characterCountLimit = 500000
-  ): Promise<ConversationDocument | null> {
-    const messages = await this.getOldestUnprocessedConversationMessages(
+    tokenLimit = 500000
+  ): Promise<ChatBatchDocument | null> {
+    const messages = await this.getOldestUnprocessedMessages(
       chatId,
-      characterCountLimit
+      tokenLimit
     );
 
     if (messages.length === 0) {
-      this.logger.log(`No unprocessed messages found for chat ${chatId}`);
+      this.logger.log(`Not unprocessed messages found for chat ${chatId}`);
       return null;
     }
 
@@ -145,14 +182,313 @@ export class ConversationService {
       true
     );
 
-    const candidate: Candidate = await this.geminiService.summarizeAndRate(
-      [...promptList, ...messagesPrompt],
-      this.summarizationSchema,
-      `${config.summarizerSystemPrompt}`
+    const batchId = await this.counterService.getNextSequence(
+      `${ChatBatchEntity.COLLECTION_NAME}-${chatId}`
+    );
+
+    const batch = await this.batchService.putBatchRequestsInBucket(
+      chatId,
+      batchId,
+      [
+        {
+          contents: [...promptList, ...messagesPrompt],
+          systemInstruction: {
+            role: "user",
+            parts: [
+              {
+                text: config.summarizerSystemPrompt,
+              },
+            ],
+          },
+          safetySettings: this.geminiService.getSafetySettings(),
+          generationConfig: {
+            candidateCount: 1,
+            temperature: 0.5,
+            topP: 1.0,
+            responseMimeType: "application/json",
+            responseSchema: this.summarizationSchema,
+          },
+        },
+      ],
+      [messages[0].messageId, messages[messages.length - 1].messageId]
+    );
+
+    if (!batch) {
+      throw new Error("Failed to create batch for chat messages summarization");
+    }
+
+    const batchJob = await this.geminiService.batchGood(
+      this.batchService.getChatBucketUrl(chatId, batch.inputFileName),
+      this.batchService.getChatBucketUrl(chatId, batch.outputFolder),
+      this.batchService.getChatBucketBatchInputName(chatId)
+    );
+
+    // @todo: [CRIT]: Filter batched messages
+
+    return await this.batchService.assignBatchJobToBatch(
+      chatId,
+      batch.id,
+      batchJob.name,
+      batchJob.displayName,
+      batchJob.state
+    );
+  }
+
+  /**
+   * Tries to find the largest gaps in the message history and split by them
+   * aiming to keep no more than character target count.
+   *
+   * First gets some number of latest messages, then finds gaps larger than
+   * MAX_CONVERSATION_GAP_MS and splits by them. If the resulting chunks are still
+   * too large, it will further split them by larger gaps until the character
+   * count limit is met.
+   * @param chatId
+   * @param tokenLimit
+   */
+  private async getOldestUnprocessedMessages(
+    chatId: number,
+    tokenLimit = 500000
+  ): Promise<Array<MessageDocument>> {
+    let messages = await this.messageService.getOldestUnprocessedMessages(
+      chatId
+    );
+
+    let largestEndGapMs = 0;
+    let largestEndGapIndex = -1;
+    for (let i = messages.length; i < Math.max(0, messages.length - 100); i--) {
+      const gapMs =
+        messages[i].createdAt.getTime() - messages[i - 1].createdAt.getTime();
+      if (gapMs > largestEndGapMs) {
+        largestEndGapMs = gapMs;
+        largestEndGapIndex = i;
+      }
+    }
+
+    messages = messages.slice(0, largestEndGapIndex);
+
+    if (messages.length <= 100) {
+      return [];
+    }
+
+    const mappedMessages: Map<number, MessageDocument> = new Map();
+    messages.forEach((message) =>
+      mappedMessages.set(message.messageId, message)
+    );
+
+    const users = await this.userService.getParticipants(chatId, messages);
+    const mappedUsers: Map<number, UserDocument> = new Map();
+    users.forEach((user) => mappedUsers.set(user.userId, user));
+
+    // Log IDs and gap duration in milliseconds between messages.
+    const messageIdGaps: Array<[number, number]> = [];
+
+    let lastMessageDate: Date | null = null;
+    for (const message of messages) {
+      if (!lastMessageDate) {
+        lastMessageDate = message.createdAt;
+        messageIdGaps.push([message.messageId, 0]);
+        continue;
+      }
+
+      const gapMs = message.createdAt.getTime() - lastMessageDate.getTime();
+      messageIdGaps.push([message.messageId, gapMs]);
+    }
+
+    const formattedMessageCache = new Map<number, string>();
+
+    let messageIdGapsGroups: Array<Array<[number, number]>> = [
+      [...messageIdGaps],
+    ];
+
+    let currentTokenCount = 0;
+    let largestGap = Infinity;
+
+    do {
+      let nextLargestGapMs = 0;
+      const nextMessageIdGapsGroups: Array<Array<[number, number]>> = [[]];
+      messageIdGapsGroups.forEach((group) => {
+        for (let i = 0; i < group.length; i++) {
+          const [, gapMs] = group[i];
+          if (gapMs > nextLargestGapMs) {
+            nextLargestGapMs = gapMs;
+          }
+
+          if (gapMs >= largestGap) {
+            // Split here
+            nextMessageIdGapsGroups.push(group.slice(0, i));
+            nextMessageIdGapsGroups.push(group.slice(i));
+            break;
+          }
+
+          nextMessageIdGapsGroups[nextMessageIdGapsGroups.length - 1].push(
+            group[i]
+          );
+        }
+      });
+
+      const firstMessageIdGapGroup = messageIdGapsGroups[0];
+
+      for (let i = 0; i < firstMessageIdGapGroup.length; i++) {
+        const [messageId] = firstMessageIdGapGroup[i];
+
+        if (!formattedMessageCache.has(messageId)) {
+          const message = mappedMessages.get(messageId);
+          if (message) {
+            const user = mappedUsers.get(message.userId);
+            let responseToUser: UserDocument | undefined;
+
+            if (message.replyToMessageId) {
+              const repliedMessage = mappedMessages.get(
+                message.replyToMessageId
+              );
+
+              if (repliedMessage) {
+                responseToUser = mappedUsers.get(repliedMessage.userId);
+              }
+            }
+
+            const formatted = this.promptService.formatMessageContent(
+              message,
+              user,
+              responseToUser,
+              false,
+              true
+            );
+            formattedMessageCache.set(messageId, formatted);
+          } else {
+            formattedMessageCache.set(messageId, "");
+          }
+        }
+      }
+
+      currentTokenCount = await this.geminiService.getTokenCount(
+        "advanced",
+        Array.from(formattedMessageCache.values()).join("\n")
+      );
+
+      messageIdGapsGroups = nextMessageIdGapsGroups;
+      largestGap = nextLargestGapMs;
+    } while (currentTokenCount > tokenLimit);
+
+    this.logger.log(
+      `Selected conversation chunk of ${messageIdGapsGroups[0].length} messages ` +
+        `(${currentTokenCount} tokens) ` +
+        `by gap of ~${Math.round(largestGap / 1000 / 60)}m ` +
+        `to fit ${tokenLimit} tokens`
+    );
+
+    return messages.filter(
+      (message) =>
+        messageIdGapsGroups[0].findIndex(([id]) => id === message.messageId) >=
+        0
+    );
+  }
+
+  @Cron("*/15 * * * *")
+  public async retrieveBatchResults(chatId?: number): Promise<void> {
+    let chatIds = [];
+
+    if (chatId) {
+      chatIds = [chatId];
+    } else {
+      chatIds = await this.configService.getAllChatIds();
+    }
+
+    for (const chatId of chatIds) {
+      try {
+        const batches = await this.batchService.getPendingBatches(chatId);
+
+        for (const batch of batches) {
+          if (!batch.job || !batch.job.name) {
+            this.logger.warn(
+              `Batch ${batch.id} for chat ${chatId} has no job assigned`
+            );
+            continue;
+          }
+
+          const batchJob = await this.geminiService.getBatchJob(batch.job.name);
+
+          if (GENAI_JOB_STATES_PROGRESS.includes(batchJob.state)) {
+            this.logger.log(
+              `Batch ${batch.id} for chat ${chatId} is still in progress (${batchJob.state})`
+            );
+            continue;
+          } else if (GENAI_JOB_STATES_SUCCESS.includes(batchJob.state)) {
+            this.logger.log(
+              `Processing completed batch ${batch.id} for chat ${chatId}`
+            );
+
+            const results = await this.batchService.getBatchResponseFromBucket(
+              chatId,
+              batch.id
+            );
+
+            if (
+              !results ||
+              results.length === 0 ||
+              !results[0].response ||
+              !results[0].response.candidates ||
+              results[0].response.candidates.length === 0
+            ) {
+              this.logger.warn(
+                `No results found in batch ${batch.id} for chat ${chatId}`
+              );
+              continue;
+            }
+
+            await this.processBatchResults(
+              chatId,
+              batch,
+              results[0].response.candidates[0].content
+            );
+          } else if (GENAI_JOB_STATES_FAILED.includes(batchJob.state)) {
+            this.logger.error(
+              `Batch ${batch.id} for chat ${chatId} failed with state ${batchJob.state}`
+            );
+          } else {
+            this.logger.warn(
+              `Batch ${batch.id} for chat ${chatId} has unknown state ${batchJob.state}`
+            );
+          }
+
+          await this.batchService.updateBatchJobState(
+            chatId,
+            batch.id,
+            batchJob.state,
+            batchJob.startTime ? new Date(batchJob.startTime) : undefined,
+            batchJob.endTime ? new Date(batchJob.endTime) : undefined
+          );
+        }
+      } catch (err) {
+        this.logger.error(
+          `Error processing batch for chat ${chatId}: ${err.message}`,
+          err.stack
+        );
+      }
+    }
+  }
+
+  public async processBatchResults(
+    chatId: number,
+    batch: ChatBatchDocument,
+    content: Content
+  ): Promise<void> {
+    const messages = await this.messageService.getMessages(
+      chatId,
+      batch.startMessageId,
+      batch.endMessageId
+    );
+
+    const participantIds = new Set<number>();
+    messages.forEach((message) => participantIds.add(message.userId));
+
+    const users = await this.userService.getUsers(
+      chatId,
+      Array.from(participantIds)
     );
 
     const response: SummarizationResponse = JSON.parse(
-      candidate.content.parts.map((part) => part.text || "").join("\n") ?? null
+      content.parts.map((part) => part.text || "").join("\n") ?? null
     );
 
     for (const conversation of response.conversations) {
@@ -326,182 +662,6 @@ export class ConversationService {
 
       if (updated) {
         await person.save();
-      }
-    }
-  }
-
-  /**
-   * Tries to find the largest gaps in the message history and split by them
-   * aiming to keep no more than character target count.
-   *
-   * First gets some number of latest messages, then finds gaps larger than
-   * MAX_CONVERSATION_GAP_MS and splits by them. If the resulting chunks are still
-   * too large, it will further split them by larger gaps until the character
-   * count limit is met.
-   * @param chatId
-   * @param characterCountLimit
-   */
-  public async getOldestUnprocessedConversationMessages(
-    chatId: number,
-    characterCountLimit = 500000
-  ): Promise<Array<MessageDocument>> {
-    const messages = await this.messageService.getOldestUnprocessedMessages(
-      chatId,
-      Math.round(characterCountLimit / 40)
-    );
-
-    if (messages.length === 0) {
-      return [];
-    }
-
-    const mappedMessages: Map<number, MessageDocument> = new Map();
-    messages.forEach((message) =>
-      mappedMessages.set(message.messageId, message)
-    );
-
-    const users = await this.userService.getParticipants(chatId, messages);
-    const mappedUsers: Map<number, UserDocument> = new Map();
-    users.forEach((user) => mappedUsers.set(user.userId, user));
-
-    // For every gap larger than MIN_GAP_MS we will log the message IDs
-    // and gap duration in milliseconds.
-    const messageIdGaps: Array<[number, number]> = [];
-
-    let lastMessageDate: Date | null = null;
-    for (const message of messages) {
-      if (!lastMessageDate) {
-        lastMessageDate = message.createdAt;
-        messageIdGaps.push([message.messageId, 0]);
-        continue;
-      }
-
-      const gapMs = message.createdAt.getTime() - lastMessageDate.getTime();
-      messageIdGaps.push([message.messageId, gapMs]);
-    }
-
-    const formattedMessageCache = new Map<number, string>();
-
-    let messageIdGapsGroups: Array<Array<[number, number]>> = [
-      [...messageIdGaps],
-    ];
-    let breakGap = ConversationService.MAX_CONVERSATION_GAP_MS;
-
-    let currentCharacterCount = 0;
-    do {
-      let nextGap = 0;
-
-      messageIdGapsGroups[0].forEach(([, gap]) => {
-        if (gap > nextGap && gap < breakGap) {
-          nextGap = gap;
-        }
-      });
-
-      if (nextGap > 0) {
-        breakGap = nextGap;
-      }
-
-      messageIdGapsGroups = messageIdGaps.reduce(
-        (groups, [id, gapMs]) => {
-          if (gapMs > breakGap) {
-            groups.push([]);
-          }
-          groups[groups.length - 1].push([id, gapMs]);
-          return groups;
-        },
-        [...messageIdGapsGroups]
-      );
-
-      const firstMessageIdGapGroup = messageIdGapsGroups[0];
-
-      for (let i = 0; i < firstMessageIdGapGroup.length; i++) {
-        const [messageId] = firstMessageIdGapGroup[i];
-
-        if (!formattedMessageCache.has(messageId)) {
-          const message = mappedMessages.get(messageId);
-          if (message) {
-            const user = mappedUsers.get(message.userId);
-            let responseToUser: UserDocument | undefined;
-
-            if (message.replyToMessageId) {
-              const repliedMessage = mappedMessages.get(
-                message.replyToMessageId
-              );
-
-              if (repliedMessage) {
-                responseToUser = mappedUsers.get(repliedMessage.userId);
-              }
-            }
-
-            const formatted = this.promptService.formatMessageContent(
-              message,
-              user,
-              responseToUser,
-              false,
-              true
-            );
-            formattedMessageCache.set(messageId, formatted);
-          } else {
-            formattedMessageCache.set(messageId, "");
-          }
-        }
-
-        const formatted = formattedMessageCache.get(messageId) || "";
-        currentCharacterCount += formatted.length;
-
-        if (currentCharacterCount > characterCountLimit) {
-          break;
-        }
-      }
-    } while (currentCharacterCount < characterCountLimit);
-
-    this.logger.log(
-      `Selected conversation chunk of ${messageIdGapsGroups[0].length} messages ` +
-        `by gap of ~${Math.round(
-          breakGap / 1000 / 60
-        )}m to fit ${currentCharacterCount} characters`
-    );
-
-    return messages.filter(
-      (message) =>
-        messageIdGapsGroups[0].findIndex(([id]) => id === message.messageId) >=
-        0
-    );
-  }
-
-  @Cron("0 */6 * * *")
-  public async processUnprocessedConversations(chatId?: number): Promise<void> {
-    let chatIds = [];
-
-    if (chatId) {
-      chatIds = [chatId];
-    } else {
-      chatIds = await this.configService.getAllChatIds();
-    }
-
-    for (const chatId of chatIds) {
-      let processedCount = 0;
-      do {
-        try {
-          await this.processOldestUnprocessedConversation(chatId);
-
-          processedCount++;
-          this.logger.log(`Processed conversation for chat ${chatId}`);
-        } catch (err) {
-          this.logger.error(
-            `Error processing conversations for chat ${chatId}: ${err.message}`,
-            err.stack
-          );
-          processedCount++;
-          // Not having this put me in debt to Alphabet LLC for life
-          // Thread carefully
-          break;
-        }
-      } while (processedCount < ConversationService.MAX_RUNS_PER_HOUR);
-
-      if (processedCount > 0) {
-        this.logger.log(
-          `Processed ${processedCount} conversations for chat ${chatId}`
-        );
       }
     }
   }

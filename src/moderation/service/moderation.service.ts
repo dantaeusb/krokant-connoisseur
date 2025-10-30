@@ -247,8 +247,31 @@ export class ModerationService {
     });
   }
 
-  public async unbanUser(chatId: number, userId: number): Promise<boolean> {
-    return Promise.all([
+  public async pardonUser(chatId: number, userId: number): Promise<boolean> {
+    const result = this.unbanUser(chatId, userId);
+
+    return this.banEntityModel.findOneAndUpdate(
+      { chatId: chatId, userId: userId },
+      {
+        expiresAt: null,
+        severity: {
+          $min: 0,
+          $inc: -1,
+        },
+        $push: {
+          events: {
+            type: "ban",
+            reason: "Pardoned",
+            severity: 0,
+            expiresAt: null,
+          } as BanEventEntity,
+        },
+      }
+    );
+  }
+
+  public async unbanUser(chatId: number, userId: number): Promise<void> {
+    Promise.all([
       this.bot.telegram.restrictChatMember(chatId, userId, {
         permissions: {
           can_send_messages: true,
@@ -261,18 +284,7 @@ export class ModerationService {
       this.bot.telegram.unbanChatMember(chatId, userId, {
         only_if_banned: true,
       }),
-    ]).then(
-      () => {
-        return true;
-      },
-      (error) => {
-        this.logger.error(
-          `Failed to unban user ${userId} in chat ${chatId}`,
-          error
-        );
-        return false;
-      }
-    );
+    ]);
   }
 
   public async getBans(

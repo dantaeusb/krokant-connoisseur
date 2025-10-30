@@ -14,9 +14,9 @@ import { RoleplayModule } from "@roleplay/roleplay.module";
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: "ban", schema: BanSchema }]),
-    MongooseModule.forFeature([{ name: "warn", schema: WarnSchema }]),
     MongooseModule.forFeature([
+      { name: "ban", schema: BanSchema },
+      { name: "warn", schema: WarnSchema },
       { name: "language_warn", schema: LanguageWarnSchema },
     ]),
     CoreModule,

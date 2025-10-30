@@ -52,7 +52,7 @@ export class PingGroupService {
         )
         .exec();
 
-      await this.configService.reloadConfig(chatId);
+      await this.configService.reload(chatId);
     } else {
       this.logger.error(`Config not found for chatId: ${chatId}`);
       throw new Error("Configuration not found");
@@ -79,7 +79,7 @@ export class PingGroupService {
           )
           .exec();
 
-        await this.configService.reloadConfig(chatId);
+        await this.configService.reload(chatId);
 
         return result.modifiedCount > 0;
       }
@@ -106,7 +106,7 @@ export class PingGroupService {
           )
           .exec();
 
-        await this.configService.reloadConfig(chatId);
+        await this.configService.reload(chatId);
 
         return result.modifiedCount > 0;
       }

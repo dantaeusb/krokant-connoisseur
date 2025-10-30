@@ -16,13 +16,18 @@ import {
   HARDCODED_STRATEGY_CONVERSATION,
 } from "../entity/answer-strategy.entity";
 import { MessageDocumentWithChain } from "../type/message-with-chain";
+import { ModelQualityType } from "@genai/types/model-quality.type";
 
 /**
- * @todo: [MED]: Use explicit caching for chat info ant conversations,
- * they rarely update (every 6 hrs)
+ * @todo: [MED] Re-cache if more than X new tokens since last cache
+ * @todo: [HIGH] Similar to answer strategy, have context strategy that
+ * decides how much context to provide based on answer needs.
  */
 @Injectable()
 export class CharacterService {
+  private static readonly MINIMAL_CACHING_TOKENS = 15000;
+  private static readonly MINIMAL_RECACHE_TRIGGER_TOKENS = 25000;
+
   private logger = new Logger("Roleplay/CharacterService");
 
   constructor(
@@ -42,238 +47,367 @@ export class CharacterService {
     text: string,
     toUser?: UserDocument
   ): Promise<string> {
-    const config = await this.configService.getConfig(chatId);
+    try {
+      const config = await this.configService.getConfig(chatId);
 
-    const users = await this.userService.getActiveUsersInChat(chatId, 50);
-    const message = await this.messageService.getMessage(chatId, messageId);
+      const users = await this.userService.getActiveUsersInChat(chatId, 50);
+      const message = await this.messageService.getMessage(chatId, messageId);
 
-    let answerStrategy: AnswerStrategyEntity =
-      await this.answerStrategyService.solveChatStrategy(
-        chatId,
-        messageId,
-        text,
-        users
-      );
+      let answerStrategy: AnswerStrategyEntity | null = null;
+      let chatContextRequired = false;
 
-    if (!answerStrategy) {
-      this.logger.error(
-        "No answer strategy could be determined. Using fallback strategy."
-      );
-
-      answerStrategy = {
-        chatId,
-        ...HARDCODED_STRATEGY_CONVERSATION,
-      };
-    }
-
-    if (answerStrategy.strategyCode === HARDCODED_STRATEGY_CODE_IGNORE) {
-      this.logger.log(
-        "Bot chose to ignore the message based on the answer strategy."
-      );
-      return "";
-    }
-
-    let cache = await this.geminiCacheService.getChatCache(
-      chatId,
-      answerStrategy.quality
-    );
-
-    let promptList: Array<Content> = [];
-
-    if (!cache) {
-      const pastConversationsContext =
-        await this.conversationService.getConversations(chatId);
-
-      const [
-        currentConversationContext,
-        characterPrompt,
-        commandsPrompt,
-        participantsPrompt,
-        pastConversationsPrompt,
-        replyPrompt,
-      ] = await Promise.all([
-        this.collectCurrentConversationContext(chatId, messageId),
-        this.promptService.getPromptFromChatCharacter(chatId),
-        this.promptService.getPromptForCommands(),
-        this.promptService.getPromptForUsersParticipants(users),
-        this.promptService.getPromptFromConversations(pastConversationsContext),
-        this.promptService.getPromptForReply(toUser),
-      ]);
-
-      const promptThreadChain: Array<Content> =
-        this.promptService.getPromptFromMessages(
-          currentConversationContext,
+      // eslint-disable-next-line prefer-const
+      const answerStrategyResponse =
+        await this.answerStrategyService.solveChatStrategy(
+          chatId,
+          messageId,
+          text,
           users
         );
 
+      //this.solveChatContext(chatId, messageId, text, users),
+
+      if (
+        !!answerStrategyResponse ||
+        answerStrategyResponse.strategies.length > 0
+      ) {
+        const strategy = answerStrategyResponse.strategies.sort(
+          (a, b) => b.weight - a.weight
+        );
+
+        chatContextRequired = answerStrategyResponse.needExtraContext;
+
+        const answerStrategyDocument =
+          await this.answerStrategyService.getStrategy(
+            chatId,
+            strategy[0].strategy
+          );
+
+        answerStrategy = answerStrategyDocument.toObject();
+      } else {
+        this.logger.error(
+          "No answer strategy could be determined. Using fallback strategy."
+        );
+      }
+
+      if (answerStrategy === null) {
+        this.logger.error(
+          "No answer strategy could be determined. Using fallback strategy."
+        );
+
+        answerStrategy = {
+          chatId,
+          ...HARDCODED_STRATEGY_CONVERSATION,
+        };
+      }
+
+      if (answerStrategy.strategyCode === HARDCODED_STRATEGY_CODE_IGNORE) {
+        this.logger.log(
+          "Bot chose to ignore the message based on the answer strategy."
+        );
+        return "";
+      }
+
+      let cache = await this.geminiCacheService.getChatCache(
+        chatId,
+        answerStrategy.quality,
+        chatContextRequired ? "extended" : "short"
+      );
+
+      let promptList: Array<Content> = [];
+
+      if (!cache) {
+        const pastConversationsContext =
+          await this.conversationService.getConversations(chatId);
+
+        const [
+          currentConversationContext,
+          characterPrompt,
+          commandsPrompt,
+          participantsPrompt,
+          pastConversationsPrompt,
+          replyPrompt,
+        ] = await Promise.all([
+          this.collectConversationContext(chatId, messageId),
+          this.promptService.getPromptFromChatCharacter(chatId),
+          this.promptService.getPromptForCommands(),
+          this.promptService.getPromptForUsersParticipants(users),
+          this.promptService.getPromptFromConversations(
+            pastConversationsContext
+          ),
+          this.promptService.getPromptForReply(toUser),
+        ]);
+
+        const promptThreadChain: Array<Content> =
+          this.promptService.getPromptFromMessages(
+            currentConversationContext,
+            users
+          );
+
+        promptList.push(
+          ...characterPrompt,
+          ...commandsPrompt,
+          ...participantsPrompt,
+          ...pastConversationsPrompt,
+          ...replyPrompt,
+          {
+            role: "user",
+            parts: [
+              {
+                text: "***\n\nThose are all the previous messages from this chat that were not summarized yet. After that, you will be provided with current messages and a task below.\n\n",
+              },
+            ],
+          },
+          ...promptThreadChain
+        );
+
+        const count = await this.geminiService.getTokenCount(
+          answerStrategy.quality,
+          promptList
+        );
+        const worthCaching = count > 10000;
+
+        if (worthCaching) {
+          cache = await this.geminiCacheService.createChatCache(
+            chatId,
+            answerStrategy.quality,
+            "extended",
+            config.characterSystemPrompt,
+            promptList,
+            [
+              currentConversationContext[0].messageId,
+              currentConversationContext[currentConversationContext.length - 1]
+                .messageId,
+            ],
+            config.canGoogle
+          );
+
+          promptList = [];
+        }
+      } else {
+        const currentConversationContext =
+          await this.collectConversationContext(
+            chatId,
+            messageId,
+            chatContextRequired ? 3000 : 30,
+            cache.endMessageId
+          );
+
+        const promptThreadChain: Array<Content> =
+          this.promptService.getPromptFromMessages(
+            currentConversationContext,
+            users
+          );
+
+        promptList.push(...promptThreadChain);
+      }
+
       promptList.push(
-        ...characterPrompt,
-        ...commandsPrompt,
-        ...participantsPrompt,
-        ...pastConversationsPrompt,
-        ...replyPrompt,
         {
           role: "user",
           parts: [
             {
-              text: "***\n\nThose are all the previous messages from this chat that were not summarized yet. After that, you will be provided with current messages and a task below.\n\n",
+              text: "***\n\nThose are all the messages from the chat. You will be provided with current information and a task below.\n\n",
             },
           ],
         },
-        ...promptThreadChain
+        ...(await this.promptService.getSituationalPrompt(users))
       );
 
-      const count = await this.geminiService.getTokenCount(
-        answerStrategy.quality,
-        promptList
-      );
-      const worthCaching = count > 10000;
+      promptList.push({
+        role: "user",
+        parts: [{ text: answerStrategy.strategyPrompt + "\n\n" }],
+      });
 
-      if (worthCaching) {
-        cache = await this.geminiCacheService.createChatCache(
-          chatId,
-          answerStrategy.quality,
-          config.characterSystemPrompt,
-          promptList,
-          [
-            currentConversationContext[0].messageId,
-            currentConversationContext[currentConversationContext.length - 1]
-              .messageId,
-          ],
-          config.canGoogle
-        );
+      const replyToMessage = message.replyToMessageId
+        ? await this.messageService.getMessage(chatId, message.replyToMessageId)
+        : null;
 
-        promptList = [];
+      let replyToUser: UserDocument;
+      if (replyToMessage) {
+        replyToUser = users.find((u) => u.userId === replyToMessage.userId);
       }
-    } else {
-      const currentConversationContext =
-        await this.collectCurrentConversationContext(
-          chatId,
-          messageId,
-          cache.endMessageId
-        );
 
-      const promptThreadChain: Array<Content> =
-        this.promptService.getPromptFromMessages(
-          currentConversationContext,
-          users
-        );
-
-      promptList.push(...promptThreadChain);
-    }
-
-    promptList.push(
-      {
+      promptList.push({
         role: "user",
         parts: [
           {
-            text: "***\n\nThose are all the messages from the chat. You will be provided with current information and a task below.\n\n",
+            text: this.promptService.formatMessageContent(
+              message,
+              toUser,
+              replyToUser,
+              true
+            ),
           },
         ],
-      },
-      ...(await this.promptService.getSituationalPrompt(users))
-    );
+      });
 
-    promptList.push({
-      role: "user",
-      parts: [{ text: answerStrategy.strategyPrompt + "\n\n" }],
-    });
+      const candidate = await this.geminiService.generate(
+        answerStrategy.quality,
+        promptList,
+        config.characterSystemPrompt,
+        config.canGoogle,
+        cache ? cache.name : undefined
+      );
 
-    const replyToMessage = message.replyToMessageId
-      ? await this.messageService.getMessage(chatId, message.replyToMessageId)
-      : null;
+      if (!candidate) {
+        this.logger.log("No candidate generated by model.");
+        return "";
+      }
 
-    let replyToUser: UserDocument;
-    if (replyToMessage) {
-      replyToUser = users.find((u) => u.userId === replyToMessage.userId);
+      let answer = candidate.content.parts.map((part) => part.text).join("\n");
+      answer = answer.replace(/^>+/g, "");
+
+      if (candidate.groundingMetadata?.webSearchQueries) {
+        answer += `\n\n(Searched Google for: ${candidate.groundingMetadata.webSearchQueries
+          .map((query) => {
+            return `"[${query}](https://www.google.com/search?q=${encodeURIComponent(
+              query
+            )})"`;
+          })
+          .join(", ")})`;
+      }
+
+      return answer;
+    } catch (error) {
+      this.logger.error(
+        `Failed to respond to message in chatId=${chatId}, messageId=${messageId}: ${error.message}`,
+        error
+      );
+
+      return "";
     }
-
-    promptList.push({
-      role: "user",
-      parts: [
-        {
-          text: this.promptService.formatMessageContent(
-            message,
-            toUser,
-            replyToUser,
-            true
-          ),
-        },
-      ],
-    });
-
-    const candidate = await this.geminiService.generate(
-      answerStrategy.quality,
-      promptList,
-      config.characterSystemPrompt,
-      config.canGoogle,
-      cache ? cache.name : undefined
-    );
-
-    if (!candidate) {
-      return this.fallback();
-    }
-
-    let answer = candidate.content.parts.map((part) => part.text).join("\n");
-    answer = answer.replace(/^>+/g, "");
-
-    if (candidate.groundingMetadata?.webSearchQueries) {
-      answer += `\n\n(Searched Google for: ${candidate.groundingMetadata.webSearchQueries
-        .map((query) => {
-          return `"[${query}](https://www.google.com/search?q=${encodeURIComponent(
-            query
-          )})"`;
-        })
-        .join(", ")})`;
-    }
-
-    return answer;
   }
 
   public async rephrase(
     chatId: number,
+    messageId: number,
     text: string,
     toUser?: UserDocument
   ): Promise<string> {
-    const chatConfig = await this.configService.getConfig(chatId);
+    try {
+      const chatConfig = await this.configService.getConfig(chatId);
 
-    const [
-      characterPrompt,
-      commandsPrompt,
-      participantsPrompt,
-      rephrasePrompt,
-    ] = await Promise.all([
-      this.promptService.getPromptFromChatCharacter(chatId),
-      this.promptService.getPromptForCommands(),
-      toUser ? this.promptService.getPromptForUsersParticipants([toUser]) : [],
-      this.promptService.getPromptForRephrase(text, toUser),
-    ]);
+      const [
+        characterPrompt,
+        commandsPrompt,
+        participantsPrompt,
+        rephrasePrompt,
+      ] = await Promise.all([
+        this.collectConversationContext(chatId, messageId, 30),
+        this.promptService.getPromptFromChatCharacter(chatId),
+        this.promptService.getPromptForCommands(),
+        toUser
+          ? this.promptService.getPromptForUsersParticipants([toUser])
+          : [],
+        this.promptService.getPromptForRephrase(text, toUser),
+      ]);
 
-    const promptList: Array<Content> = [
-      ...characterPrompt,
-      ...commandsPrompt,
-      ...participantsPrompt,
-      ...rephrasePrompt,
-    ];
+      const promptList: Array<Content> = [
+        ...characterPrompt,
+        ...commandsPrompt,
+        ...participantsPrompt,
+        ...rephrasePrompt,
+      ];
 
-    const candidate = await this.geminiService.generate(
-      "low",
-      promptList,
-      chatConfig.characterSystemPrompt
-    );
+      const candidate = await this.geminiService.generate(
+        "low",
+        promptList,
+        chatConfig.characterSystemPrompt
+      );
 
-    if (!candidate) {
+      if (!candidate) {
+        return text;
+      }
+
+      let answer = candidate.content.parts.map((part) => part.text).join("\n");
+      answer = answer.replace(/^>+/g, "");
+
+      return answer;
+    } catch (error) {
+      this.logger.error(
+        `Failed to rephrase message in chatId=${chatId}, messageId=${messageId}: ${error.message}`,
+        error
+      );
       return text;
     }
+  }
 
-    let answer = candidate.content.parts.map((part) => part.text).join("\n");
-    answer = answer.replace(/^>+/g, "");
+  private async solveChatContext(
+    chatId: number,
+    messageId: number,
+    text: string,
+    users: Array<UserDocument>
+  ): Promise<boolean> {
+    this.logger.debug(
+      `Solving context requirements for chatId=${chatId} with message="${text}"`
+    );
 
-    return answer;
+    const config = await this.configService.getConfig(chatId);
+
+    const currentConversationContext = await this.collectConversationContext(
+      chatId,
+      messageId,
+      30
+    );
+
+    if (!users) {
+      users = await this.userService.getParticipants(
+        chatId,
+        currentConversationContext
+      );
+    }
+
+    const [characterPrompt, participantsPrompt] = await Promise.all([
+      this.promptService.getPromptFromChatCharacter(chatId),
+      this.promptService.getPromptForUsersParticipants(users),
+    ]);
+
+    const contents: Array<Content> = [
+      ...characterPrompt,
+      ...participantsPrompt,
+      ...this.promptService.getPromptFromMessages(
+        currentConversationContext.reverse(),
+        users,
+        false
+      ),
+      {
+        role: "user",
+        parts: [
+          {
+            text:
+              "Classify whether extended content is required to respond to the message below. It is usually required when a summary of past events needed or someone referring an activity:\n" +
+              `"${text}"`,
+          },
+        ],
+      },
+    ];
+
+    const result = await this.geminiService.quickClassifyEnum(
+      contents,
+      ["yes", "no"],
+      "Yes if there is enough context to answer the message based on the conversation history provided above, or more messages need to be loaded?",
+      config.answerStrategySystemPrompt
+    );
+
+    return result === "yes";
+  }
+
+  public async reloadCacheForChat(
+    chatId: number,
+    quality?: ModelQualityType
+  ): Promise<void> {
+    if (!quality) {
+      const qualities: Array<ModelQualityType> = ["low", "regular", "advanced"];
+      for (const q of qualities) {
+        await this.geminiCacheService.deleteChatCache(chatId, q);
+      }
+      return;
+    }
+    await this.geminiCacheService.deleteChatCache(chatId, quality);
   }
 
   /**
-   * @todo: [HIGH] having N last messages *breaks the cache*
    * It is much more efficient for LLM to cache shit ton of messages
    * since last summarization than try to narrow down the context,
    * especially with Gemini that can do 1M tokens (that's like 35 000 000 chars).
@@ -282,19 +416,21 @@ export class CharacterService {
    * We also need to remove current time and for that rewrite prompt.
    * @param chatId
    * @param messageId
+   * @param limit
    * @param fromMessageId
    * @private
    */
-  private async collectCurrentConversationContext(
+  private async collectConversationContext(
     chatId: number,
     messageId: number,
+    limit = 10000,
     fromMessageId?: number
   ): Promise<Array<MessageDocumentWithChain>> {
     const [pastMessages, chain]: [
       Array<MessageDocument>,
       Array<MessageDocumentWithChain>
     ] = await Promise.all([
-      this.messageService.getUnprocessedMessages(chatId, fromMessageId, 10000),
+      this.messageService.getUnprocessedMessages(chatId, limit, fromMessageId),
       this.messageService.getMessageChain(chatId, messageId),
     ]);
 
@@ -321,9 +457,5 @@ export class CharacterService {
     combinedMessages.sort((a, b) => a.date.getTime() - b.date.getTime());
 
     return combinedMessages;
-  }
-
-  private async fallback(): Promise<string> {
-    return "What you said is so dumb that I couldn't answer without triggering safety filters, of which I have none. Please shut up.";
   }
 }

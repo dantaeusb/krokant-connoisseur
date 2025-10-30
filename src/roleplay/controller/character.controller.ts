@@ -19,6 +19,7 @@ import { TriggerService } from "../service/trigger.service";
 import { CharacterService } from "../service/character.service";
 import { PersonService } from "../service/person.service";
 import { ConfigService } from "@core/service/config.service";
+import { ConversationService } from "@roleplay/service/conversation.service";
 
 /**
  * Handles character talking and responses.
@@ -36,6 +37,7 @@ export class CharacterController {
     private readonly configService: ConfigService,
     private readonly commandsService: CommandsService,
     private readonly characterService: CharacterService,
+    private readonly conversationService: ConversationService,
     private readonly triggerService: TriggerService,
     private readonly messageService: MessageService,
     private readonly userService: UserService,
@@ -202,6 +204,31 @@ export class CharacterController {
       );
 
     return next();
+  }
+
+  @On("new_chat_members")
+  async newChatMembers(
+    @Ctx() context: Context<TelegramUpdate.ChatMemberUpdate>
+  ): Promise<void> {
+    this.logger.debug("Handling new chat members for character greeting");
+
+    if (!context.chatMember.new_chat_member) {
+      return;
+    }
+
+    const member = context.chatMember.new_chat_member;
+
+    if (
+      member.user.id &&
+      !member.user.is_bot &&
+      member.user.id !== context.botInfo.id
+    ) {
+      /*this.characterService.greet(
+        context.chat.id,
+        member.user.id,
+        member.user.first_name
+      )*/
+    }
   }
 
   @Command("ignoreme")
@@ -383,5 +410,45 @@ export class CharacterController {
         }
       );
     }
+  }
+
+  @Command("test")
+  @UseGuards(AdminGuard)
+  async test(
+    @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
+    @Message() message: TelegramUpdate.MessageUpdate["message"]
+  ): Promise<void> {
+    this.logger.debug("Handling /test command");
+
+    await this.conversationService.batchMessages(context.chat.id);
+  }
+
+  @Command("check")
+  @UseGuards(AdminGuard)
+  async check(
+    @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
+    @Message() message: TelegramUpdate.MessageUpdate["message"]
+  ): Promise<void> {
+    this.logger.debug("Handling /check command");
+
+    await this.conversationService.retrieveBatchResults(context.chat.id);
+  }
+
+  @Command("reload")
+  @UseGuards(AdminGuard)
+  async reload(
+    @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
+    @Next() next: () => Promise<void>
+  ): Promise<void> {
+    try {
+      await this.characterService.reloadCacheForChat(context.chat.id);
+    } catch (error) {
+      this.logger.error("Failed to reload chat cache", error);
+      context.react("🤷‍♀").catch((err: Error) => {
+        this.logger.error("Failed to react to /reload command", err);
+      });
+    }
+
+    await next();
   }
 }
