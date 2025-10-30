@@ -17,6 +17,7 @@ import {
 } from "../entity/answer-strategy.entity";
 import { MessageDocumentWithChain } from "../type/message-with-chain";
 import { ModelQualityType } from "@genai/types/model-quality.type";
+import { CONTEXT_WINDOW_MESSAGES_LIMIT } from "@roleplay/const/context-window.const";
 
 /**
  * @todo: [MED] Re-cache if more than X new tokens since last cache
@@ -67,6 +68,7 @@ export class CharacterService {
 
       //this.solveChatContext(chatId, messageId, text, users),
 
+      // @todo: [HIGH] Refactor chatContextRequired
       if (
         !!answerStrategyResponse ||
         answerStrategyResponse.strategies.length > 0
@@ -128,12 +130,16 @@ export class CharacterService {
           pastConversationsPrompt,
           replyPrompt,
         ] = await Promise.all([
-          this.collectConversationContext(chatId, messageId),
+          chatContextRequired
+            ? this.collectConversationContext(chatId, messageId)
+            : [],
           this.promptService.getPromptFromChatCharacter(chatId),
           this.promptService.getPromptForCommands(),
           this.promptService.getPromptForUsersParticipants(users),
           this.promptService.getPromptFromConversations(
-            pastConversationsContext
+            pastConversationsContext,
+            chatContextRequired ? 100 : 30,
+            chatContextRequired ? 500 : 70
           ),
           this.promptService.getPromptForReply(toUser),
         ]);
@@ -165,20 +171,23 @@ export class CharacterService {
           answerStrategy.quality,
           promptList
         );
-        const worthCaching = count > 10000;
+        const worthCaching = count > CharacterService.MINIMAL_CACHING_TOKENS;
 
         if (worthCaching) {
           cache = await this.geminiCacheService.createChatCache(
             chatId,
             answerStrategy.quality,
-            "extended",
+            chatContextRequired ? "extended" : "short",
             config.characterSystemPrompt,
             promptList,
-            [
-              currentConversationContext[0].messageId,
-              currentConversationContext[currentConversationContext.length - 1]
-                .messageId,
-            ],
+            chatContextRequired
+              ? [
+                  currentConversationContext[0].messageId,
+                  currentConversationContext[
+                    currentConversationContext.length - 1
+                  ].messageId,
+                ]
+              : undefined,
             config.canGoogle
           );
 
@@ -189,7 +198,9 @@ export class CharacterService {
           await this.collectConversationContext(
             chatId,
             messageId,
-            chatContextRequired ? 3000 : 30,
+            chatContextRequired
+              ? CONTEXT_WINDOW_MESSAGES_LIMIT.extended
+              : CONTEXT_WINDOW_MESSAGES_LIMIT.short,
             cache.endMessageId
           );
 

@@ -19,13 +19,16 @@ export class ChatCacheEntity {
   @Prop({ required: true })
   model: string;
 
+  @Prop()
+  totalTokenCount: number;
+
   @Prop({ required: true })
   expiresAt: Date;
 
-  @Prop({ required: true })
+  @Prop()
   startMessageId: number;
 
-  @Prop({ required: true })
+  @Prop()
   endMessageId: number;
 
   @Prop({ required: true, default: false })

@@ -55,7 +55,10 @@ export class ChatConfigEntity {
     default:
       "You are an expert at determining the best way to respond to messages in a group chat setting. " +
       "Based on the given bot roleplay persona, context of the conversation and the content of the message, " +
-      "choose which would be the best strategy for the bot to respond from given options.",
+      "choose which would be the best strategy for the bot to respond from given options. " +
+      "When evaluating if extra context is needed, consider if the bot has enough information to provide " +
+      "a relevant and accurate response. If user requests a summary of events or a question is relevant to the chat " +
+      "request extra context for the next step",
   })
   answerStrategySystemPrompt: string;
 

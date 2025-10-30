@@ -113,6 +113,15 @@ export class ConversationService {
 
     for (const chatId of chatIds) {
       try {
+        const config = await this.configService.getConfig(chatId);
+
+        if (!config.yapping) {
+          this.logger.log(
+            `Yapping is disabled for chat ${chatId}, skipping batching.`
+          );
+          continue;
+        }
+
         await this.batchChatMessages(chatId);
 
         this.logger.log(`Batched messages for chat ${chatId}`);
@@ -223,8 +232,6 @@ export class ConversationService {
       this.batchService.getChatBucketBatchInputName(chatId)
     );
 
-    // @todo: [CRIT]: Filter batched messages
-
     return await this.batchService.assignBatchJobToBatch(
       chatId,
       batch.id,
@@ -238,6 +245,9 @@ export class ConversationService {
    * Tries to find the largest gaps in the message history and split by them
    * aiming to keep no more than character target count.
    *
+   * Excludes messages already processed or in pending batches (by latest
+   * pending batch)
+   *
    * First gets some number of latest messages, then finds gaps larger than
    * MAX_CONVERSATION_GAP_MS and splits by them. If the resulting chunks are still
    * too large, it will further split them by larger gaps until the character
@@ -249,8 +259,18 @@ export class ConversationService {
     chatId: number,
     tokenLimit = 500000
   ): Promise<Array<MessageDocument>> {
+    const pendingBatches = await this.batchService.getPendingBatches(chatId);
+
+    const latestPendingBatch = pendingBatches.reduce(
+      (latest, batch) =>
+        !latest || batch.endMessageId > latest.endMessageId ? batch : latest,
+      null as ChatBatchDocument | null
+    );
+
     let messages = await this.messageService.getOldestUnprocessedMessages(
-      chatId
+      chatId,
+      undefined,
+      latestPendingBatch ? latestPendingBatch.endMessageId : undefined
     );
 
     let largestEndGapMs = 0;
@@ -423,24 +443,38 @@ export class ConversationService {
               batch.id
             );
 
-            if (
-              !results ||
-              results.length === 0 ||
-              !results[0].response ||
-              !results[0].response.candidates ||
-              results[0].response.candidates.length === 0
-            ) {
+            if (!results || results.length === 0) {
               this.logger.warn(
                 `No results found in batch ${batch.id} for chat ${chatId}`
               );
               continue;
             }
 
-            await this.processBatchResults(
-              chatId,
-              batch,
-              results[0].response.candidates[0].content
-            );
+            let errorsOccurred = false;
+
+            for (const result of results) {
+              if (
+                !result.response ||
+                !result.response.candidates ||
+                result.response.candidates.length === 0
+              ) {
+                this.logger.warn(
+                  `Invalid result in batch ${batch.id} for chat ${chatId}`
+                );
+                errorsOccurred = true;
+                continue;
+              }
+
+              await this.processBatchResults(
+                chatId,
+                batch,
+                result.response.candidates[0].content
+              );
+            }
+
+            if (!errorsOccurred) {
+              await this.batchService.cleanupBatchBucket(chatId, batch.id);
+            }
           } else if (GENAI_JOB_STATES_FAILED.includes(batchJob.state)) {
             this.logger.error(
               `Batch ${batch.id} for chat ${chatId} failed with state ${batchJob.state}`
@@ -457,6 +491,10 @@ export class ConversationService {
             batchJob.state,
             batchJob.startTime ? new Date(batchJob.startTime) : undefined,
             batchJob.endTime ? new Date(batchJob.endTime) : undefined
+          );
+
+          this.logger.log(
+            `Processed batch ${batch.id} for chat ${chatId} to state ${batchJob.state}`
           );
         }
       } catch (err) {

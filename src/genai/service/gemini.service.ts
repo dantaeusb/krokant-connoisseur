@@ -327,7 +327,7 @@ ${promptText}
   }
 
   public resultSanityCheck(result: GenerateContentResponse) {
-    if (result.usageMetadata.promptTokenCount > 400000) {
+    if (result.usageMetadata.promptTokenCount > 128000) {
       this.logger.warn(
         `High token usage: ${result.usageMetadata.promptTokenCount}`
       );

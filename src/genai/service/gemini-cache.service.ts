@@ -3,7 +3,7 @@ import { InjectModel } from "@nestjs/mongoose";
 import { ChatCacheEntity } from "@genai/entity/chat-cache.entity";
 import { Model } from "mongoose";
 import { GeminiService } from "@genai/service/gemini.service";
-import { ContentListUnion } from "@google/genai";
+import { Content, ContentListUnion, Part } from "@google/genai";
 import { ModelQualityType } from "@genai/types/model-quality.type";
 import { ContextWindowType } from "@roleplay/types/context-window.type";
 
@@ -84,12 +84,14 @@ export class GeminiCacheService {
     contextWindow: ContextWindowType,
     systemInstruction: string,
     contents: ContentListUnion,
-    messageRange: [number, number],
+    messageRange?: [number, number],
     canGoogle = false
   ): Promise<ChatCacheEntity> {
     this.logger.debug(`Caching chat data for chatId=${chatId}`);
 
     canGoogle = canGoogle && this.geminiService.canGoogleSearch(quality);
+
+    this.logPromptForDebug(contents, systemInstruction);
 
     const cache = await this.geminiService.getCaches().create({
       model: this.geminiService.getModelByQuality(quality),
@@ -102,14 +104,18 @@ export class GeminiCacheService {
       },
     });
 
+    cache.usageMetadata.totalTokenCount;
+
     return await this.chatCacheModel.create({
       chatId,
       name: cache.name,
       displayName: cache.displayName,
       model: cache.model,
       expiresAt: new Date(cache.expireTime),
-      startMessageId: messageRange[0],
-      endMessageId: messageRange[1],
+      ...(messageRange && {
+        startMessageId: messageRange[0],
+        endMessageId: messageRange[1],
+      }),
     });
   }
 
@@ -119,5 +125,55 @@ export class GeminiCacheService {
     contextWindow: ContextWindowType
   ): string {
     return `ChatCache_${chatId}_${type}_${contextWindow}`;
+  }
+
+  /**
+   * @todo: [MED]: Create utility service to deduplicate this code
+   * @param prompt
+   * @param systemInstruction
+   * @private
+   */
+  private logPromptForDebug(
+    prompt: ContentListUnion,
+    systemInstruction?: string
+  ) {
+    if (process.env.NODE_ENV !== "development") {
+      return;
+    }
+
+    const formatPart = (part: Part): string => {
+      if (part.text) {
+        if (part.text.length > 1000) {
+          return part.text.slice(0, 1000) + "... [truncated]";
+        }
+
+        return part.text;
+      }
+      if (part.inlineData) {
+        return `[Inline data: ${part.inlineData.mimeType}]`;
+      }
+      if (part.fileData) {
+        return `[File data: ${part.fileData.mimeType}]`;
+      }
+      return "[Unknown part]";
+    };
+
+    const formatContent = (content: Content): string =>
+      content.parts.map(formatPart).join("\n");
+
+    const promptText = Array.isArray(prompt)
+      ? prompt.map(formatContent).join("\n---\n")
+      : prompt;
+
+    const logMessage = `
+=====================
+[System Instruction]:
+${systemInstruction}
+---------------------
+[User Prompt]:
+${promptText}
+=====================
+`;
+    this.logger.debug(logMessage);
   }
 }

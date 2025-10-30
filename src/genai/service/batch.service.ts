@@ -8,8 +8,9 @@ import {
 import {
   Content,
   ContentListUnion,
-  GenerateContentConfig, GenerateContentResponse,
-  JobState
+  GenerateContentConfig,
+  GenerateContentResponse,
+  JobState,
 } from "@google/genai";
 import { BotName } from "@/app.constants";
 import { InjectModel } from "@nestjs/mongoose";
@@ -112,20 +113,21 @@ export class BatchService {
     const bucket = await this.getChatBucket(chatId);
     const outputFolder = this.getChatBatchOutputFolderName(batchId);
     const [files] = await bucket.getFiles({ prefix: outputFolder + "/" });
+    const predictionsFile = files.find((file) =>
+      file.name.endsWith("predictions.jsonl")
+    );
 
     const responses: Array<BatchResponse> = [];
 
-    for (const file of files) {
-      const [contents] = await file.download();
-      const lines = contents.toString().split("\n");
+    const [contents] = await predictionsFile.download();
+    const lines = contents.toString().split("\n");
 
-      for (const line of lines) {
-        if (line.trim().length === 0) {
-          continue;
-        }
-
-        responses.push(JSON.parse(line));
+    for (const line of lines) {
+      if (line.trim().length === 0) {
+        continue;
       }
+
+      responses.push(JSON.parse(line));
     }
 
     return responses;
@@ -153,6 +155,36 @@ export class BatchService {
         { new: true }
       )
       .exec();
+  }
+
+  public async cleanupBatchBucket(
+    chatId: number,
+    batchId: number
+  ): Promise<void> {
+    const bucket = await this.getChatBucket(chatId);
+    const batch = await this.chatBatchEntityModel.findOne({
+      chatId: chatId,
+      id: batchId,
+    });
+
+    if (!batch) {
+      return;
+    }
+
+    const inputFile = bucket.file(batch.inputFileName);
+    await inputFile.delete().catch((error) => {
+      this.logger.warn(`Failed to delete input file: ${error.message}`);
+    });
+
+    const [files] = await bucket.getFiles({
+      prefix: batch.outputFolder + "/",
+    });
+
+    for (const file of files) {
+      await file.delete().catch((error) => {
+        this.logger.warn(`Failed to delete output file: ${error.message}`);
+      });
+    }
   }
 
   public async getPendingBatches(

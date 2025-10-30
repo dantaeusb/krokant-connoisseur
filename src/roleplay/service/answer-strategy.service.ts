@@ -15,6 +15,7 @@ import { MessageDocument } from "@core/entity/message.entity";
 import { MessageDocumentWithChain } from "@roleplay/type/message-with-chain";
 import { Content, Schema as GenAiOpenApiSchema, Type } from "@google/genai";
 import { UserDocument } from "@core/entity/user.entity";
+import { CONTEXT_WINDOW_MESSAGES_LIMIT } from "@roleplay/const/context-window.const";
 
 type StrategyClassificationResponse = {
   strategies: Array<{
@@ -22,12 +23,10 @@ type StrategyClassificationResponse = {
     weight: number;
   }>;
   needExtraContext: boolean;
-}
+};
 
 @Injectable()
 export class AnswerStrategyService implements OnModuleInit {
-  private static readonly MAX_WINDOW_MESSAGES = 100;
-
   private logger = new Logger("Roleplay/AnswerStrategyService");
 
   constructor(
@@ -202,10 +201,12 @@ export class AnswerStrategyService implements OnModuleInit {
       );
     }
 
-    const [characterPrompt, participantsPrompt] = await Promise.all([
-      this.promptService.getPromptFromChatCharacter(chatId),
-      this.promptService.getPromptForUsersParticipants(users),
-    ]);
+    const [characterPrompt, participantsPrompt, situationalPrompt] =
+      await Promise.all([
+        this.promptService.getPromptFromChatCharacter(chatId),
+        this.promptService.getPromptForUsersParticipants(users),
+        this.promptService.getSituationalPrompt(users),
+      ]);
 
     const contents: Array<Content> = [
       ...characterPrompt,
@@ -215,6 +216,7 @@ export class AnswerStrategyService implements OnModuleInit {
         users,
         false
       ),
+      ...situationalPrompt,
       {
         role: "user",
         parts: [
@@ -296,7 +298,7 @@ export class AnswerStrategyService implements OnModuleInit {
     ] = await Promise.all([
       this.messageService.getLatestMessages(
         chatId,
-        AnswerStrategyService.MAX_WINDOW_MESSAGES
+        CONTEXT_WINDOW_MESSAGES_LIMIT.short
       ),
       this.messageService.getMessageChain(chatId, messageId),
     ]);
@@ -369,7 +371,7 @@ export class AnswerStrategyService implements OnModuleInit {
         needExtraContext: {
           type: Type.BOOLEAN,
           description:
-            "True if provided context window is sufficient, false if more history might be needed to answer the message.",
+            "True if provided context window is sufficient, false if more history might be needed to answer the message. Use true when question is related to the chat history or past event, when asked for summarization, or about someone's behavior.",
           example: false,
         },
       },

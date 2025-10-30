@@ -230,7 +230,7 @@ export class MessageService {
     fromMessageId: number,
     toMessageId: number
   ): Promise<Array<MessageDocument>> {
-    return this.messageEntityModel.findOne({
+    return this.messageEntityModel.find({
       chatId: chatId,
       messageId: { $gte: fromMessageId, $lte: toMessageId },
     });
@@ -412,7 +412,8 @@ export class MessageService {
 
   public async getOldestUnprocessedMessages(
     chatId: number,
-    limit?: number
+    limit?: number,
+    fromMessageId?: number
   ): Promise<Array<MessageDocument>> {
     const query = this.messageEntityModel
       .find({
@@ -420,6 +421,10 @@ export class MessageService {
         conversationIds: null,
       })
       .sort({ date: 1 });
+
+    if (fromMessageId) {
+      query.where("messageId").gt(fromMessageId);
+    }
 
     if (limit) {
       query.limit(limit);

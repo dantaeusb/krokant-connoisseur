@@ -242,6 +242,8 @@ export class PromptService {
     warns = warns.filter((w) => w !== null);
     bans = bans.filter((b) => b !== null);
 
+    let userStatusesText = '';
+
     userParticipants.forEach((user) => {
       const warn = warns.find((w) => w.userId === user.userId);
       let userStatus = `Status of user ${this.userService.getSafeUniqueIdentifier(
@@ -263,19 +265,18 @@ export class PromptService {
           userStatus += `* Is permanently banned.\n`;
         }
       } else {
-        userStatus += `* This has no bans on record.\n`;
+        userStatus += `* Has no bans on record.\n`;
       }
+      userStatusesText += userStatus;
+    });
 
-      userStatus += `\n`;
-
-      prompts.push({
-        role: "user",
-        parts: [
-          {
-            text: userStatus,
-          },
-        ],
-      });
+    prompts.push({
+      role: "user",
+      parts: [
+        {
+          text: userStatusesText,
+        },
+      ],
     });
 
     warns = warns.filter((w) => w !== null);
@@ -339,16 +340,28 @@ export class PromptService {
   }
 
   public getPromptFromConversations(
-    conversations: Array<ConversationDocument>
+    conversations: Array<ConversationDocument>,
+    extended = 100,
+    short = 500
   ): Array<Content> {
     let text =
       `You are provided with a list of summaries of past conversations.\n` +
       `Each summary has a relative date short description.\n`;
 
-    for (const conversation of conversations) {
-      text += `${this.formatterService.formatRelativeTime(
-        conversation.date
-      )}: ${conversation.summary}\n`;
+    for (let i = 0; i < conversations.length; i++) {
+      const conversation = conversations[i];
+
+      if (i <= extended) {
+        text += `${this.formatterService.formatRelativeTime(
+          conversation.date
+        )}: ${conversation.summary}\n`;
+      } else if (i <= short + extended) {
+        text += `${this.formatterService.formatRelativeTime(
+          conversation.date
+        )}: ${conversation.title}\n`;
+      } else {
+        break;
+      }
     }
 
     this.logger.debug(`Conversations prompt length: ${text.length}`);
