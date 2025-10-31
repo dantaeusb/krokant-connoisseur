@@ -9,7 +9,11 @@ import { ContextWindowType } from "@roleplay/types/context-window.type";
 
 @Injectable()
 export class GeminiCacheService {
-  private static CACHE_TTL_SECONDS = 60 * 60 * 7;
+  private static CACHES_TTL: Record<ModelQualityType, number> = {
+    advanced: 60 * 30, // 30 minutes
+    regular: 60 * 60 * 4,
+    low: 0,
+  };
 
   private readonly logger = new Logger("GenAi/GeminiCacheService");
 
@@ -86,7 +90,11 @@ export class GeminiCacheService {
     contents: ContentListUnion,
     messageRange?: [number, number],
     canGoogle = false
-  ): Promise<ChatCacheEntity> {
+  ): Promise<ChatCacheEntity | null> {
+    if (GeminiCacheService.CACHES_TTL[quality] === 0) {
+      return null;
+    }
+
     this.logger.debug(`Caching chat data for chatId=${chatId}`);
 
     canGoogle = canGoogle && this.geminiService.canGoogleSearch(quality);
@@ -99,7 +107,7 @@ export class GeminiCacheService {
         contents,
         systemInstruction,
         displayName: this.getDisplayName(chatId, quality, contextWindow),
-        ttl: `${GeminiCacheService.CACHE_TTL_SECONDS}s`,
+        ttl: `${GeminiCacheService.CACHES_TTL[quality]}s`,
         ...(canGoogle ? { tools: [{ googleSearch: {} }] } : {}),
       },
     });
