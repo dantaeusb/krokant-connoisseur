@@ -53,17 +53,23 @@ export class MessageService {
    * track of conversation history.
    * @param chatId
    * @param text
-   * @param extra
-   * @param avoidPings
+   * @param extra Additional message options
+   * @param avoidPings Escapes @handles to avoid unwanted pings
+   * @param llmSanitize Removes LLM-specific artifacts from the message text
    */
   public async sendMessage(
     chatId: number,
     text: string,
     extra?: ExtraReplyMessage,
-    avoidPings = true
+    avoidPings = true,
+    llmSanitize = true
   ): Promise<Message.TextMessage> {
     if (avoidPings) {
       text = this.formatterService.escapeHandles(text);
+    }
+
+    if (llmSanitize) {
+      text = this.llmSanitizeText(text);
     }
 
     const splitTexts = this.splitAndEscapeMessage(text);
@@ -609,5 +615,30 @@ export class MessageService {
     );
 
     return result.modifiedCount;
+  }
+
+  private llmSanitizeText(text: string): string {
+    const lines = text.split("\n");
+    const pattern = /^\[[a-zA-Z\d@:]+\](\s+\(.+\))?:$/;
+
+    let firstNonMatchingLineIndex = 0;
+    while (
+      firstNonMatchingLineIndex < lines.length &&
+      pattern.test(lines[firstNonMatchingLineIndex])
+      ) {
+      firstNonMatchingLineIndex++;
+    }
+
+    const relevantLines = lines.slice(firstNonMatchingLineIndex);
+
+    const processedLines = relevantLines.map((line) => {
+      if (line.startsWith("Oh, ")) {
+        const rest = line.substring(4);
+        return rest.charAt(0).toUpperCase() + rest.slice(1);
+      }
+      return line;
+    });
+
+    return processedLines.join("\n");
   }
 }

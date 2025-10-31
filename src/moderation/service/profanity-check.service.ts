@@ -8,10 +8,10 @@ export class ProfanityCheckService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  public async containsProfanity(
+  public async containsProfanities(
     chatId: number,
     text: string
-  ): Promise<boolean> {
+  ): Promise<Array<string>> {
     const words = text.toLowerCase().split(/\s+/);
 
     const config = await this.configService.getConfig(chatId);
@@ -42,12 +42,9 @@ export class ProfanityCheckService {
     );
 
     triggeredFilters.forEach((filter) => {
-      this.logger.log(
-        `Message triggered profanity filter: ${filter.filter}`,
-        text
-      );
+      this.logger.log(`Message triggered profanity filter: ${filter.filter}`);
     });
 
-    return triggeredFilters.length > 0;
+    return triggeredFilters.map((filter) => filter.filter as string);
   }
 }

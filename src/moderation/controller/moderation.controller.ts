@@ -29,6 +29,7 @@ import {
   LanguageCheckService,
   LanguageWarnResult,
 } from "@moderation/service/language-check.service";
+import { UserDocument } from "@core/entity/user.entity";
 
 @Update()
 export class ModerationController {
@@ -494,77 +495,46 @@ export class ModerationController {
             .translateText(context.text)
             .then(async (translatedText) => {
               if (translatedText) {
-                const hasProfanity =
-                  this.profanityCheckService.containsProfanity(
+                const profanities =
+                  await this.profanityCheckService.containsProfanities(
                     context.chat.id,
                     translatedText
                   );
 
-                if (hasProfanity) {
+                if (profanities && profanities.length > 0) {
                   // @todo: [HIGH] Warn moderator if not deleted?
-                  void context.deleteMessage(context.message.message_id);
+                  context.deleteMessage(context.message.message_id)
+                    .catch((error) => {
+                      this.logger.error(
+                        "Failed to delete message with profanities:",
+                        error
+                      );
+                    });
 
-                  const result = await this.moderationService.warnUser(
-                    context.chat.id,
-                    context.from.id,
-                    undefined,
-                    "For not learning which words not to use"
+                  await this.warn(
+                    context,
+                    message,
+                    `Used profanities: ${profanities.join(", ")}`,
+                    `Used profanity in translated message`
                   );
-
-                  const user = await this.userService.getUser(
-                    context.chat.id,
-                    context.from.id,
-                    context.from
-                  );
-
-                  const name = user?.name || "User";
-
-                  if (result === WarnResult.WARNED) {
-                    await this.reply(
-                      context,
-                      message,
-                      `${name} has been warned for using profanity.`
-                    ).catch((error) => {
-                      this.logger.error(
-                        "Failed to send acknowledge for warn on profanity:",
-                        error
-                      );
-                    });
-                  } else if (result === WarnResult.MUTED) {
-                    await this.reply(
-                      context,
-                      message,
-                      `${name} has been banned due using profanity after reaching the warning limit.`
-                    ).catch((error) => {
-                      this.logger.error(
-                        "Failed to send acknowledge for ban on profanity:",
-                        error
-                      );
-                    });
-                  } else {
-                    await this.reply(
-                      context,
-                      message,
-                      "Failed to issue a warning."
-                    ).catch((error) => {
-                      this.logger.error(
-                        "Failed to send acknowledge for ban on profanity:",
-                        error
-                      );
-                    });
-                  }
 
                   return;
                 }
 
                 this.messageService
-                  .sendMessage(context.chat.id, translatedText, {
-                    reply_parameters: {
-                      message_id: message.message_id,
-                      chat_id: context.chat.id,
-                      allow_sending_without_reply: false,
+                  .sendMessage(
+                    context.chat.id,
+                    translatedText,
+                    {
+                      reply_parameters: {
+                        message_id: message.message_id,
+                        chat_id: context.chat.id,
+                        allow_sending_without_reply: false,
+                      },
                     },
-                  })
+                    true,
+                    false
+                  )
                   .catch((error) => {
                     this.logger.error(
                       "Failed to send translated message",
@@ -668,62 +638,21 @@ export class ModerationController {
       return next();
     }
 
-    const hasProfanity = await this.profanityCheckService.containsProfanity(
+    const profanities = await this.profanityCheckService.containsProfanities(
       context.chat.id,
       context.text
     );
 
-    if (hasProfanity) {
+    if (profanities && profanities.length > 0) {
       // @todo: [HIGH] Warn moderator if not deleted?
       void context.deleteMessage(context.message.message_id);
 
-      const result = await this.moderationService.warnUser(
-        context.chat.id,
-        context.from.id,
-        undefined,
-        "For not learning which words not to use"
+      await this.warn(
+        context,
+        message,
+        `Used profanities: ${profanities.join(", ")}`,
+        `Used profanity`
       );
-
-      const user = await this.userService.getUser(
-        context.chat.id,
-        context.from.id,
-        context.from
-      );
-
-      const name = user?.name || "User";
-
-      if (result === WarnResult.WARNED) {
-        await this.reply(
-          context,
-          message,
-          `${name} has been warned for using profanity.`
-        ).catch((error) => {
-          this.logger.error(
-            "Failed to send acknowledge for warn on profanity:",
-            error
-          );
-        });
-      } else if (result === WarnResult.MUTED) {
-        await this.reply(
-          context,
-          message,
-          `${name} has been banned due using profanity after reaching the warning limit.`
-        ).catch((error) => {
-          this.logger.error(
-            "Failed to send acknowledge for ban on profanity:",
-            error
-          );
-        });
-      } else {
-        await this.reply(context, message, "Failed to issue a warning.").catch(
-          (error) => {
-            this.logger.error(
-              "Failed to send acknowledge for ban on profanity:",
-              error
-            );
-          }
-        );
-      }
     }
 
     return next();
@@ -806,6 +735,70 @@ export class ModerationController {
         })} on message ${context.messageReaction.message_id}`
       );
     }
+  }
+
+  private async warn(
+    context:
+      | Context<TelegramUpdate.MessageUpdate>
+      | Context<TelegramUpdate.EditedMessageUpdate>,
+    message:
+      | TelegramUpdate.MessageUpdate["message"]
+      | TelegramUpdate.EditedMessageUpdate["edited_message"],
+    reason: string,
+    announceReason?: string,
+    user?: UserDocument
+  ): Promise<WarnResult> {
+    const result = await this.moderationService.warnUser(
+      context.chat.id,
+      context.from.id,
+      undefined,
+      reason
+    );
+
+    if (!user) {
+      user = await this.userService.getUser(
+        context.chat.id,
+        context.from.id,
+        context.from
+      );
+    }
+
+    if (!announceReason) {
+      announceReason = reason;
+    }
+
+    const name = user?.name || "User";
+
+    if (result === WarnResult.WARNED) {
+      await this.reply(
+        context,
+        message,
+        `${name} has been warned for: ${announceReason}.`
+      ).catch((error) => {
+        this.logger.error("Failed to send acknowledge for warn:", error);
+      });
+    } else if (result === WarnResult.MUTED) {
+      await this.reply(
+        context,
+        message,
+        `${name} has been banned for: ${announceReason} after reaching the warning limit.`
+      ).catch((error) => {
+        this.logger.error("Failed to send acknowledge for ban:", error);
+      });
+    } else {
+      await this.reply(
+        context,
+        message,
+        `Failed to issue a warning for: ${announceReason}.`
+      ).catch((error) => {
+        this.logger.error(
+          "Unable to send nor failure message nor acknowledge failure:",
+          error
+        );
+      });
+    }
+
+    return result;
   }
 
   private async reply(

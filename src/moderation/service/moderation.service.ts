@@ -155,6 +155,7 @@ export class ModerationService {
     const banEntity = await this.banEntityModel
       .findOneAndUpdate(
         { chatId: chatId, userId: userId },
+        {},
         {
           upsert: true,
           new: true,
