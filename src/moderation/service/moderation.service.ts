@@ -166,6 +166,10 @@ export class ModerationService {
 
     const action = revoke ? "ban" : "mute";
 
+    if (!banEntity.severity) {
+      banEntity.severity = 0;
+    }
+
     if (forceSeverity) {
       banEntity.severity = forceSeverity;
     } else if (limitedSeverity) {
@@ -307,13 +311,13 @@ export class ModerationService {
    * @private
    */
   private calculateBanEndTime(banEntity: BanEntity): number {
-    if (banEntity.severity >= 7) {
+    if (!isNaN(banEntity.severity) && banEntity.severity >= 7) {
       return 0;
     }
 
     const hours = Math.pow(
       ModerationService.BASE_BAN_DURATION_HOURS,
-      banEntity.severity + 1
+      banEntity.severity ? banEntity.severity + 1 : 1
     );
 
     const endDate = new Date();

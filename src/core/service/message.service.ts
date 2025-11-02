@@ -619,7 +619,7 @@ export class MessageService {
 
   private llmSanitizeText(text: string): string {
     const lines = text.split("\n");
-    const pattern = /^\[[a-zA-Z\d@:]+\](\s+\(.+\))?:$/;
+    const pattern = /^(Current thread )?\[[a-zA-Z\d@:]+\](\s+\(.+\))?:$/;
 
     let firstNonMatchingLineIndex = 0;
     while (
