@@ -174,6 +174,10 @@ export class CharacterController {
       return next();
     }
 
+    this.bot.telegram.sendChatAction(context.chat.id, "typing").catch(() => {
+      this.logger.error("Failed to send typing action.");
+    });
+
     const response = await this.characterService.respond(
       context.chat.id,
       message.message_id,
