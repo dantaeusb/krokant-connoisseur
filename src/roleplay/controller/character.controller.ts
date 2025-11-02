@@ -174,6 +174,7 @@ export class CharacterController {
       return next();
     }
 
+    // @todo: [LOW] Add for rephrases, also keep sending chat action during response generation
     this.bot.telegram.sendChatAction(context.chat.id, "typing").catch(() => {
       this.logger.error("Failed to send typing action.");
     });
