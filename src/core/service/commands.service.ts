@@ -148,7 +148,10 @@ export class CommandsService {
     return null;
   }
 
-  public extractCommandIntegerMut(args: string[]): number | null {
+  public extractCommandIntegerMut(
+    args: string[],
+    strict = false
+  ): number | null {
     if (args.length === 0) {
       return null;
     }
@@ -156,7 +159,7 @@ export class CommandsService {
     const supposedInteger = args[0].trim();
     const parsed = parseInt(supposedInteger, 10);
 
-    if (!isNaN(parsed)) {
+    if (!isNaN(parsed) && (!strict || parsed.toString() === supposedInteger)) {
       args.shift();
       return parsed;
     }

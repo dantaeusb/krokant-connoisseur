@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Context, Telegraf } from "telegraf";
 import { Update } from "telegraf/types";
-import { ParseMode, Message } from "@telegraf/types/message";
+import { Message } from "@telegraf/types/message";
 import { InjectModel } from "@nestjs/mongoose";
 import { InjectBot } from "nestjs-telegraf";
 import { Model, pluralize } from "mongoose";
@@ -48,6 +48,34 @@ export class MessageService {
     private readonly userService: UserService
   ) {}
 
+  public async handleMessageAnswerProcessing<T>(
+    chatId: number,
+    promise: Promise<T>,
+    timeoutSeconds = 60
+  ): Promise<T> {
+    const sendTypingAction = () => {
+      this.bot.telegram.sendChatAction(chatId, "typing").catch(() => {
+        this.logger.error("Failed to send typing action.");
+      });
+    };
+
+    sendTypingAction();
+    const interval = setInterval(sendTypingAction, 4000);
+
+    const timeoutPromise: Promise<never> = new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error("Processing timed out.")),
+        timeoutSeconds * 1000
+      )
+    );
+
+    try {
+      return Promise.race([promise, timeoutPromise]);
+    } finally {
+      clearInterval(interval);
+    }
+  }
+
   /**
    * Sends a message through Telegram API and records it in the database to keep
    * track of conversation history.
@@ -78,7 +106,7 @@ export class MessageService {
     for (const splitText of splitTexts) {
       this.logger.debug(splitText);
 
-      const message = await this.bot.telegram.sendMessage(chatId, splitText, {
+      lastMessage = await this.bot.telegram.sendMessage(chatId, splitText, {
         ...extra,
         parse_mode: extra?.parse_mode ?? "MarkdownV2",
         link_preview_options: {
@@ -89,8 +117,6 @@ export class MessageService {
           ...extra?.link_preview_options,
         },
       });
-
-      lastMessage = message;
     }
 
     // @todo: [MED] Record real messages, without formatting escapes.
@@ -625,7 +651,7 @@ export class MessageService {
     while (
       firstNonMatchingLineIndex < lines.length &&
       pattern.test(lines[firstNonMatchingLineIndex])
-      ) {
+    ) {
       firstNonMatchingLineIndex++;
     }
 

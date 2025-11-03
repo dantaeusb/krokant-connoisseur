@@ -503,7 +503,8 @@ export class ModerationController {
 
                 if (profanities && profanities.length > 0) {
                   // @todo: [HIGH] Warn moderator if not deleted?
-                  context.deleteMessage(context.message.message_id)
+                  context
+                    .deleteMessage(context.message.message_id)
                     .catch((error) => {
                       this.logger.error(
                         "Failed to delete message with profanities:",
@@ -820,12 +821,20 @@ export class ModerationController {
         context.from
       );
 
-      answer = await this.characterService.rephrase(
-        context.chat.id,
-        message.from.id,
-        answer,
-        toUser
-      );
+      try {
+        answer = await this.messageService.handleMessageAnswerProcessing(
+          context.chat.id,
+          this.characterService.rephrase(
+            context.chat.id,
+            message.from.id,
+            answer,
+            toUser
+          ),
+          60
+        );
+      } catch (error) {
+        this.logger.error("Error rephrasing moderation reply:", error);
+      }
     }
 
     return this.messageService.sendMessage(context.chat.id, answer, {
