@@ -70,7 +70,7 @@ export class MessageService {
     );
 
     try {
-      return Promise.race([promise, timeoutPromise]);
+      return await Promise.race([promise, timeoutPromise]);
     } finally {
       clearInterval(interval);
     }

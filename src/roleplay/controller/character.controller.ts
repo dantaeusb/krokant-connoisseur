@@ -171,7 +171,9 @@ export class CharacterController {
       );
 
       if (cooldown) {
-        this.logger.log(`Not responding to user ${user.userId} due to cooldown.`);
+        this.logger.log(
+          `Not responding to user ${user.userId} due to cooldown.`
+        );
         return next();
       }
 

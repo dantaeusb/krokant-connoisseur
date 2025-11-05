@@ -34,7 +34,7 @@ import { UserDocument } from "@core/entity/user.entity";
 @Update()
 export class ModerationController {
   private static readonly MIN_SELF_MUTE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
-  private static readonly MAX_SELF_MUTE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 1 day
+  private static readonly MAX_SELF_MUTE_DURATION_MS = 24 * 60 * 60 * 1000; // 1 day
 
   private readonly logger = new Logger("Moderation/ModerationController");
 
