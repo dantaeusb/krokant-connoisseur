@@ -13,6 +13,7 @@ export type ImageFlagAction =
   | "Ignore"
   | "Spoiler"
   | "Warn"
+  | "WarnSpoiler"
   | "WarnDelete"
   | "Ban";
 
@@ -33,11 +34,12 @@ export class ImageCheckService {
     {
       code: "Sex",
       description: "The image contains sexual act or intercourse.",
-      action: "Warn",
+      action: "WarnSpoiler",
     },
     {
       code: "Violence",
-      description: "The image shows acts of violence or physical harm.",
+      description:
+        "The image shows acts of non-cartoon, naturalistic violence or physical harm.",
       action: "Ignore",
     },
     {
@@ -53,7 +55,8 @@ export class ImageCheckService {
     },
     {
       code: "Gore",
-      description: "The image contains graphic depictions of injury or death.",
+      description:
+        "The image contains highly graphic and naturalistic depictions of injury or death of real person.",
       action: "Ban",
     },
     {

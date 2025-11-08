@@ -257,21 +257,30 @@ export class ModerationService {
 
     return this.banEntityModel.findOneAndUpdate(
       { chatId: chatId, userId: userId },
-      {
-        expiresAt: null,
-        severity: {
-          $min: 0,
-          $inc: -1,
-        },
-        $push: {
-          events: {
-            type: "ban",
-            reason: "Pardoned",
-            severity: 0,
+      [
+        {
+          $set: {
             expiresAt: null,
-          } as BanEventEntity,
+            severity: {
+              $max: [0, { $subtract: ["$severity", 1] }],
+            },
+            events: {
+              $concatArrays: [
+                "$events",
+                [
+                  {
+                    type: "pardon",
+                    reason: "Pardoned",
+                    severity: 0,
+                    expiresAt: null,
+                  } as BanEventEntity,
+                ],
+              ],
+            },
+          },
         },
-      }
+      ],
+      { new: true }
     );
   }
 
