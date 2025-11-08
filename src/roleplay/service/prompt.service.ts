@@ -329,8 +329,8 @@ export class PromptService {
               `You are rephrasing message addressed to ${
                 toUser?.name ?? "someone"
               }\n` +
-              `Rephrase the following message, keeping important information, such as numbers.'n` +
-              `Do not mention your task to rephrase:\n` +
+              `Rephrase just the following message, keeping important information, such as numbers.\n` +
+              `You may use previous messages for better understanding of the context. Do not mention your task to rephrase:\n` +
               `\n` +
               text,
           },

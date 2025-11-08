@@ -362,7 +362,7 @@ export class CharacterService {
           role: "user",
           parts: [
             {
-              text: "***\n\nThose are all the previous messages from this chat that were not summarized yet. After that, you will be provided with current messages and a task below.\n\n",
+              text: "***\n\nUse few latest messages for the context of the event:\n\n",
             },
           ],
         },
