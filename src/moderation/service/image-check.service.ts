@@ -28,12 +28,13 @@ export class ImageCheckService {
   private static readonly FLAGS: Array<ImageFlag> = [
     {
       code: "Nudity",
-      description: "The image contains naked human body.",
+      description:
+        "The image contains naked human body, with visible genitalia or nipple of a woman's breast.",
       action: "Spoiler",
     },
     {
       code: "Sex",
-      description: "The image contains sexual act or intercourse.",
+      description: "The image contains sexual act or intercourse, with visible genitalia.",
       action: "WarnSpoiler",
     },
     {
@@ -56,7 +57,9 @@ export class ImageCheckService {
     {
       code: "Gore",
       description:
-        "The image contains highly graphic and naturalistic depictions of injury or death of real person.",
+        "The image contains highly graphic and naturalistic depictions of injury or death of real person." +
+        "This includes dismemberment, decapitation, or other extreme violence." +
+        "Cartoon or fictional violence is not included in this category.",
       action: "Ban",
     },
     {
