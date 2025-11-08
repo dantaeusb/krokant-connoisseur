@@ -31,7 +31,7 @@ export class LoggingController {
         });
 
       if ("text" in edited && edited.text) {
-        const message = await this.messageService.updateMessage(context);
+        await this.messageService.updateMessage(context);
         this.logger.debug("Successfully updated message text");
       } else {
         this.logger.debug("Edited message is not text-based");

@@ -3,7 +3,7 @@ import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 
 export type BanEventDocument = HydratedDocument<BanEventEntity>;
 
-export type BanEventType = "mute" | "ban";
+export type BanEventType = "mute" | "ban" | "self-mute" | "pardon";
 
 @Schema({ timestamps: true })
 export class BanEventEntity {

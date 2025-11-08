@@ -320,7 +320,7 @@ export class MessageService {
       if (!text || text.trim().length === 0) {
         text = "[Photo]";
       } else {
-        text = "[Photo]" + text;
+        text = "[Photo] " + text;
       }
 
       fileType = "photo";
@@ -331,7 +331,7 @@ export class MessageService {
       if (!text || text.trim().length === 0) {
         text = "[Sticker]";
       } else {
-        text = "[Sticker]" + text;
+        text = "[Sticker] " + text;
       }
 
       fileType = "sticker";
@@ -342,7 +342,7 @@ export class MessageService {
       if (!text || text.trim().length === 0) {
         text = "[Video]";
       } else {
-        text = "[Video]" + text;
+        text = "[Video] " + text;
       }
 
       fileType = "video";
@@ -353,7 +353,7 @@ export class MessageService {
       if (!text || text.trim().length === 0) {
         text = "[Audio]";
       } else {
-        text = "[Audio]" + text;
+        text = "[Audio] " + text;
       }
 
       fileType = "audio";
@@ -364,7 +364,7 @@ export class MessageService {
       if (!text || text.trim().length === 0) {
         text = "[Voice Message]";
       } else {
-        text = "[Voice Message]" + text;
+        text = "[Voice Message] " + text;
       }
 
       fileType = "voice";
@@ -375,7 +375,7 @@ export class MessageService {
       if (!text || text.trim().length === 0) {
         text = "[Video Note]";
       } else {
-        text = "[Video Note]" + text;
+        text = "[Video Note] " + text;
       }
 
       fileType = "video";
@@ -386,7 +386,7 @@ export class MessageService {
       if (!text || text.trim().length === 0) {
         text = "[Document]";
       } else {
-        text = "[Document]" + text;
+        text = "[Document] " + text;
       }
 
       uniqueFileId = context.message.document.file_unique_id;

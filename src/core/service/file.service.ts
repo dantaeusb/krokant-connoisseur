@@ -92,4 +92,14 @@ export class FileService {
       throw error;
     }
   }
+
+  public async describeFile(
+    fileUniqueId: string,
+    description: string
+  ): Promise<FileDocument | null> {
+    return this.fileEntityModel.findOneAndUpdate(
+      { fileUniqueId },
+      { description }
+    );
+  }
 }

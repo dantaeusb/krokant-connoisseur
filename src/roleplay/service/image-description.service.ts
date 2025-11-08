@@ -4,6 +4,7 @@ import { Update as TelegramUpdate } from "telegraf/types";
 import { ConfigService } from "@core/service/config.service";
 import { GeminiService } from "@genai/service/gemini.service";
 import { FileService } from "@core/service/file.service";
+import { MessageService } from "@core/service/message.service";
 import { ImageCheckService } from "@moderation/service/image-check.service";
 
 type ImageDescription = {
@@ -20,6 +21,7 @@ export class ImageDescriptionService {
     private readonly configService: ConfigService,
     private readonly geminiService: GeminiService,
     private readonly fileService: FileService,
+    private readonly messageService: MessageService,
     private readonly imageCheckService: ImageCheckService
   ) {}
 
@@ -46,6 +48,38 @@ export class ImageDescriptionService {
     const classificationResponse: ImageDescription = JSON.parse(
       result.content.parts.map((part) => part.text || "").join("\n") ?? null
     );
+
+    if (classificationResponse && classificationResponse.description) {
+      this.fileService
+        .describeFile(
+          photoSize.file_unique_id,
+          classificationResponse.description
+        )
+        .catch((err: Error) => {
+          this.logger.error(
+            `Failed to save description for file ${photoSize.file_unique_id}: ${err.message}`,
+            err
+          );
+        });
+
+      this.messageService
+        .getMessage(chatId, messageUpdate.message_id)
+        .then(async (message) => {
+          if (message) {
+            message.text =
+              message.text +
+              `\n\n[Image Description]: ${classificationResponse.description}`;
+
+            await message.save();
+          }
+        })
+        .catch((err: Error) => {
+          this.logger.error(
+            `Failed to append description to message ${messageUpdate.message_id}: ${err.message}`,
+            err
+          );
+        });
+    }
 
     return classificationResponse;
   }

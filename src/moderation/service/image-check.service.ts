@@ -138,6 +138,10 @@ export class ImageCheckService {
       this.flagsByAction["WarnDelete"]?.some((f) => f.code === flag.code)
     );
 
+    const warnSpoilerFlags = flags.filter((flag) =>
+      this.flagsByAction["WarnSpoiler"]?.some((f) => f.code === flag.code)
+    );
+
     if (warningFlags.length > 0 || warningDeleteFlags.length > 0) {
       const result = await this.moderationService.warnUser(
         chatId,
@@ -150,6 +154,20 @@ export class ImageCheckService {
 
       if (warningDeleteFlags.length > 0) {
         await this.bot.telegram.deleteMessage(chatId, messageId);
+      } else if (warnSpoilerFlags.length > 0) {
+        if ("photo" in messageUpdate && !messageUpdate.has_media_spoiler) {
+          await Promise.all([
+            this.bot.telegram.deleteMessage(chatId, messageId),
+            this.bot.telegram.sendPhoto(
+              chatId,
+              messageUpdate.photo!.slice(-1)[0].file_id,
+              {
+                message_thread_id: messageUpdate.message_thread_id,
+                has_spoiler: true,
+              }
+            ),
+          ]);
+        }
       }
 
       switch (result) {

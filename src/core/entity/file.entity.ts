@@ -7,7 +7,7 @@ export type FileDocument = HydratedDocument<FileEntity>;
 export class FileEntity {
   public static COLLECTION_NAME = "file";
 
-  @Prop({ required: true, index: true })
+  @Prop({ required: true, index: true, unique: true })
   fileUniqueId: string;
 
   @Prop()

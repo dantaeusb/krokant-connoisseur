@@ -20,7 +20,7 @@ import { CharacterService } from "../service/character.service";
 import { PersonService } from "../service/person.service";
 import { ConfigService } from "@core/service/config.service";
 import { ConversationService } from "@roleplay/service/conversation.service";
-import { ChatMember, User } from "@telegraf/types/manage";
+import { User } from "@telegraf/types/manage";
 
 /**
  * Handles character talking and responses.
@@ -140,7 +140,11 @@ export class CharacterController {
       if ("text" in message && this.triggerService.triggered(message.text)) {
         this.logger.log("Triggered by keyword");
         triggered = true;
-      } else if ("caption" in message && message.caption && this.triggerService.triggered(message.caption)) {
+      } else if (
+        "caption" in message &&
+        message.caption &&
+        this.triggerService.triggered(message.caption)
+      ) {
         this.logger.log("Triggered by caption keyword");
         triggered = true;
       }
