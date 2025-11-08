@@ -391,6 +391,8 @@ export class MessageCheckController {
     } catch (error) {
       this.logger.error("Error in imageCheck:", error);
     }
+
+    await next();
   }
 
   @On("message_reaction")
