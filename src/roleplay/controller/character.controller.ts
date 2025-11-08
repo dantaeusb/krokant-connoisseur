@@ -107,8 +107,6 @@ export class CharacterController {
     context: Context<TelegramUpdate.MessageUpdate>,
     @Message()
     message: TelegramUpdate.MessageUpdate["message"],
-    /*@ChatConfig()
-    config: ChatConfigDocument,*/
     @Next() next: () => Promise<void>
   ): Promise<void> {
     const config = await this.configService.getConfig(context.chat.id);
@@ -120,7 +118,7 @@ export class CharacterController {
     this.logger.debug("Handling message for possible character response");
 
     try {
-      if (!context.text) {
+      if (!("photo" in message) && !("text" in message)) {
         return next();
       }
 
@@ -139,7 +137,7 @@ export class CharacterController {
         triggered = true;
       }
 
-      if (this.triggerService.triggered(context.text)) {
+      if ("text" in message && this.triggerService.triggered(message.text)) {
         this.logger.log("Triggered by keyword");
         triggered = true;
       }
@@ -182,7 +180,7 @@ export class CharacterController {
         this.characterService.respond(
           context.chat.id,
           message.message_id,
-          context.text,
+          message,
           user
         ),
         300

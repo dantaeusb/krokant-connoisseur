@@ -1,6 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
 import {
-  CachedContent,
   Caches,
   Candidate,
   Content,
@@ -262,54 +261,45 @@ export class GeminiService {
    * Images
    */
 
-  /*public async describeImage(
-    imageData: Uint8Array,
+  public async describeImage(
+    imageData: Buffer,
+    responseSchema: Schema,
     systemInstruction?: string
   ): Promise<Candidate | null> {
-    this.logPromptForDebug(
-      [
-        {
-          parts: [
-            {
-              fileData: {
-                mimeType: "image/png",
-                data: imageData,
-              },
+    const contents: Array<Content> = [
+      {
+        role: "user",
+        parts: [
+          {
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: imageData.toString("base64"),
             },
-          ],
-        },
-      ],
-      systemInstruction
-    );
+          },
+        ],
+      },
+    ];
+
+    this.logPromptForDebug(contents, systemInstruction);
 
     const result = await this.googleGenAI.models.generateContent({
-      model: "gemini-2.5-pro",
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              fileData: {
-                mimeType: "image/png",
-                data: imageData,
-              },
-            },
-          ],
-        },
-      ],
+      model: "gemini-2.5-flash",
+      contents,
       config: {
         candidateCount: 1,
         safetySettings: this.safetySettings,
         systemInstruction,
-        temperature: 0.7,
-        topP: 0.9,
+        temperature: 0.5,
+        topP: 1.0,
+        responseMimeType: "application/json",
+        responseSchema,
       },
     });
 
     this.resultSanityCheck(result);
 
-    return result.candidates[0] || null;
-  }*/
+    return result.candidates[0];
+  }
 
   /*
    * Utilities

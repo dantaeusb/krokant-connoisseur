@@ -1,10 +1,11 @@
-import { forwardRef, Module } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 import { ChatConfigEntity, ConfigSchema } from "./entity/chat-config.entity";
 import { CounterEntity, CounterEntitySchema } from "./entity/counter.entiy";
 import { UserEntity, UserSchema } from "./entity/user.entity";
-import { ConfigController } from "./controller/config.controller";
 import { MessageEntity, MessageSchema } from "./entity/message.entity";
+import { FileEntity, FileSchema } from "./entity/file.entity";
+import { ConfigController } from "./controller/config.controller";
 import { MessageService } from "./service/message.service";
 import { UserService } from "./service/user.service";
 import { ConfigService } from "./service/config.service";
@@ -15,6 +16,7 @@ import { AuthorityService } from "./service/authority.service";
 import { PingGroupService } from "./service/ping-group.service";
 import { CommandsService } from "./service/commands.service";
 import { CounterService } from "./service/counter.service";
+import { FileService } from "./service/file.service";
 
 @Module({
   imports: [
@@ -23,6 +25,7 @@ import { CounterService } from "./service/counter.service";
       { name: CounterEntity.COLLECTION_NAME, schema: CounterEntitySchema },
       { name: UserEntity.COLLECTION_NAME, schema: UserSchema },
       { name: MessageEntity.COLLECTION_NAME, schema: MessageSchema },
+      { name: FileEntity.COLLECTION_NAME, schema: FileSchema },
     ]),
   ],
   providers: [
@@ -37,6 +40,7 @@ import { CounterService } from "./service/counter.service";
     UserService,
     PingGroupService,
     FormatterService,
+    FileService,
   ],
   exports: [
     AuthorityService,
@@ -46,6 +50,7 @@ import { CounterService } from "./service/counter.service";
     ConfigService,
     CounterService,
     FormatterService,
+    FileService
   ],
 })
 export class CoreModule {}

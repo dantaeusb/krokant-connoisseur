@@ -6,7 +6,11 @@ import { InjectModel } from "@nestjs/mongoose";
 import { InjectBot } from "nestjs-telegraf";
 import { Model, pluralize } from "mongoose";
 import { BotName } from "@/app.constants";
-import { MessageDocument, MessageEntity, MessageFileType } from "@core/entity/message.entity";
+import {
+  MessageDocument,
+  MessageEntity,
+  MessageFileType,
+} from "@core/entity/message.entity";
 import { ConfigService } from "./config.service";
 import { UserService } from "./user.service";
 import { FormatterService } from "./formatter.service";
@@ -28,6 +32,7 @@ export class MessageService {
    */
   public static readonly TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
   private static readonly MESSAGE_BREAK_SYMBOLS = [
+    "\n---\n",
     "\n\n",
     "\n",
     "? ",

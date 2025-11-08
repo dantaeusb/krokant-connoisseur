@@ -253,7 +253,7 @@ export class ModerationService {
   }
 
   public async pardonUser(chatId: number, userId: number): Promise<boolean> {
-    const result = this.unbanUser(chatId, userId);
+    await this.unbanUser(chatId, userId);
 
     return this.banEntityModel.findOneAndUpdate(
       { chatId: chatId, userId: userId },

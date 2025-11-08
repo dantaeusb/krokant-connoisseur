@@ -53,6 +53,7 @@ export const getHandlers = (
   list: handleList,
   listItem: handleListItem,
   inlineCode: handleInlineCode,
+  thematicBreak: handleThematicBreak,
   code: handleCode,
   link: handleLink,
   linkReference: getHandleLinkReference(references),
@@ -278,6 +279,10 @@ const handleInlineCode = (
   const value = escapeCode(node.value);
   exit();
   return `\`${value}\``;
+};
+
+const handleThematicBreak: Handlers["thematicBreak"] = () => {
+  return "\n---\n";
 };
 
 const handleCode = (

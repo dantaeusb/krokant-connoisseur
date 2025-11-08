@@ -5,6 +5,7 @@ import { MessageService } from "@core/service/message.service";
 import { Content } from "@google/genai";
 import { MessageDocument } from "@core/entity/message.entity";
 import { UserService } from "@core/service/user.service";
+import { FileService } from "@core/service/file.service";
 import { GeminiService } from "@genai/service/gemini.service";
 import { GeminiCacheService } from "@genai/service/gemini-cache.service";
 import { ConversationService } from "./conversation.service";
@@ -18,6 +19,7 @@ import {
 import { MessageDocumentWithChain } from "../type/message-with-chain";
 import { ModelQualityType } from "@genai/types/model-quality.type";
 import { CONTEXT_WINDOW_MESSAGES_LIMIT } from "@roleplay/const/context-window.const";
+import { Update as TelegramUpdate } from "telegraf/types";
 
 /**
  * @todo: [MED] Re-cache if more than X new tokens since last cache
@@ -39,13 +41,14 @@ export class CharacterService {
     private readonly userService: UserService,
     private readonly conversationService: ConversationService,
     private readonly answerStrategyService: AnswerStrategyService,
-    private readonly promptService: PromptService
+    private readonly promptService: PromptService,
+    private readonly fileService: FileService
   ) {}
 
   public async respond(
     chatId: number,
     messageId: number,
-    text: string,
+    messageUpdate: TelegramUpdate.MessageUpdate["message"],
     toUser?: UserDocument
   ): Promise<string> {
     try {
@@ -62,7 +65,7 @@ export class CharacterService {
         await this.answerStrategyService.solveChatStrategy(
           chatId,
           messageId,
-          text,
+          messageUpdate,
           users
         );
 
@@ -239,19 +242,47 @@ export class CharacterService {
         replyToUser = users.find((u) => u.userId === replyToMessage.userId);
       }
 
-      promptList.push({
-        role: "user",
-        parts: [
-          {
-            text: this.promptService.formatMessageContent(
-              message,
-              toUser,
-              replyToUser,
-              true
-            ),
-          },
-        ],
-      });
+      if ("text" in messageUpdate && messageUpdate.text) {
+        promptList.push({
+          role: "user",
+          parts: [
+            {
+              text: "Classify the best possible strategy to respond to the following message:",
+            },
+            {
+              text: this.promptService.formatMessageContent(
+                message,
+                toUser,
+                replyToUser,
+                true
+              ),
+            },
+          ],
+        });
+      } else if ("photo" in messageUpdate && messageUpdate.photo) {
+        const photoSize =
+          this.fileService.getPhotoMessageBestCandidate(messageUpdate);
+        const file = await this.fileService.getFile(
+          photoSize.file_unique_id,
+          photoSize.file_id,
+          "image/jpeg"
+        );
+
+        promptList.push({
+          role: "user",
+          parts: [
+            {
+              text: answerStrategy.strategyPrompt,
+            },
+            {
+              inlineData: {
+                mimeType: "image/jpeg",
+                data: file.data.toString("base64"),
+              },
+            },
+          ],
+        });
+      }
 
       const candidate = await this.geminiService.generate(
         answerStrategy.quality,

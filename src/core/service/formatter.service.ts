@@ -28,8 +28,7 @@ export class FormatterService {
     });
 
   public escapeMarkdown(text: string): string {
-    //text = text.replace(/\*(.+?)\*/g, "_$1_");
-    //text = text.replace(/\*\*/gs, "*");
+    text.replace("***", "---");
     const escapedFile = this.remarkProcessor.processSync(text);
     return escapedFile.toString().trim();
   }

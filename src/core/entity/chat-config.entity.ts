@@ -91,6 +91,15 @@ export class ChatConfigEntity {
   })
   summarizerSystemPrompt: string;
 
+  /**
+   * This will be used as a system prompt for the media descriptions
+   */
+  @Prop({
+    default:
+      "As an independent part of the chatbot system, describe the media in a manner that is the most useful for the chatbot roleplay model",
+  })
+  mediaDescriptionSystemPrompt: string;
+
   @Prop({ default: false })
   canGoogle: boolean;
 

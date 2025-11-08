@@ -28,9 +28,10 @@ async function bootstrap() {
     }
   }
 
-  await NestFactory.createApplicationContext(AppModule, {
+  const app = await NestFactory.create(AppModule, {
     logger: logLevels,
   });
+  await app.listen(3000);
 }
 
 bootstrap();

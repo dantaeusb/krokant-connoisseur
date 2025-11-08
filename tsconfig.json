@@ -39,6 +39,12 @@
       ],
       "@roleplay/*": [
         "roleplay/*"
+      ],
+      "@web": [
+        "web"
+      ],
+      "@web/*": [
+        "web/*"
       ]
     }
   },

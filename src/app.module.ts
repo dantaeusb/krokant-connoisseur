@@ -6,6 +6,7 @@ import { CoreModule } from "@core/core.module";
 import { ModerationModule } from "@moderation/moderation.module";
 import { GenAiModule } from "@genai/genai.module";
 import { RoleplayModule } from "@roleplay/roleplay.module";
+import { WebModule } from "@web/web.module";
 import { BotName } from "./app.constants";
 
 @Module({
@@ -37,6 +38,7 @@ import { BotName } from "./app.constants";
     ModerationModule,
     GenAiModule,
     RoleplayModule,
+    WebModule,
   ],
 })
 export class AppModule {}

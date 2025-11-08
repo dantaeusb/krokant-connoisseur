@@ -12,10 +12,15 @@ import { UserService } from "@core/service/user.service";
 import { GeminiService } from "@genai/service/gemini.service";
 import { PromptService } from "@roleplay/service/prompt.service";
 import { MessageDocument } from "@core/entity/message.entity";
+import { FileService } from "@core/service/file.service";
 import { MessageDocumentWithChain } from "@roleplay/type/message-with-chain";
 import { Content, Schema as GenAiOpenApiSchema, Type } from "@google/genai";
 import { UserDocument } from "@core/entity/user.entity";
 import { CONTEXT_WINDOW_MESSAGES_LIMIT } from "@roleplay/const/context-window.const";
+import { Update as TelegramUpdate } from "telegraf/types";
+import { InjectBot } from "nestjs-telegraf";
+import { BotName } from "@/app.constants";
+import { Context, Telegraf } from "telegraf";
 
 type StrategyClassificationResponse = {
   strategies: Array<{
@@ -30,11 +35,14 @@ export class AnswerStrategyService implements OnModuleInit {
   private logger = new Logger("Roleplay/AnswerStrategyService");
 
   constructor(
+    @InjectBot(BotName)
+    private readonly bot: Telegraf<Context>,
     private readonly configService: ConfigService,
     private readonly geminiService: GeminiService,
     private readonly messageService: MessageService,
     private readonly userService: UserService,
-    private readonly promptService: PromptService
+    private readonly promptService: PromptService,
+    private readonly fileService: FileService
   ) {}
 
   onModuleInit() {
@@ -174,17 +182,17 @@ export class AnswerStrategyService implements OnModuleInit {
    * Will use short-term no-cached context and quick model to classify the message.
    * @param chatId
    * @param messageId
-   * @param text
+   * @param messageUpdate
    * @param users
    */
   public async solveChatStrategy(
     chatId: number,
     messageId: number,
-    text: string,
+    messageUpdate: TelegramUpdate.MessageUpdate["message"],
     users?: Array<UserDocument>
   ): Promise<StrategyClassificationResponse> {
     this.logger.debug(
-      `Solving strategy for chatId=${chatId} with message="${text}"`
+      `Solving strategy for chatId=${chatId} with message="${messageUpdate.message_id}"`
     );
 
     const config = await this.configService.getConfig(chatId);
@@ -217,17 +225,47 @@ export class AnswerStrategyService implements OnModuleInit {
         false
       ),
       ...situationalPrompt,
-      {
+    ];
+
+    if ("text" in messageUpdate && messageUpdate.text) {
+      contents.push({
         role: "user",
         parts: [
           {
-            text:
-              "Classify the best possible strategy to respond to the following message:\n" +
-              `"${text}"`,
+            text: "Classify the best possible strategy to respond to the following message:",
+          },
+          {
+            text: messageUpdate.text,
           },
         ],
-      },
-    ];
+      });
+    } else if ("photo" in messageUpdate && messageUpdate.photo) {
+      const photoSize =
+        this.fileService.getPhotoMessageBestCandidate(messageUpdate);
+      const file = await this.fileService.getFile(
+        photoSize.file_unique_id,
+        photoSize.file_id,
+        "image/jpeg"
+      );
+
+      contents.push({
+        role: "user",
+        parts: [
+          {
+            text: "Classify the best possible strategy to respond to the following image message:",
+          },
+          {
+            text: "The message contains an image. Please consider the image content when classifying the strategy.",
+          },
+          {
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: file.data.toString("base64"),
+            },
+          },
+        ],
+      });
+    }
 
     const result = await this.geminiService.quickClassifyJson(
       contents,

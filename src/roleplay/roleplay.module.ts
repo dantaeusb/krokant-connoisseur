@@ -3,6 +3,10 @@ import { CharacterController } from "./controller/character.controller";
 import { MongooseModule } from "@nestjs/mongoose";
 import { CoreModule } from "@core/core.module";
 import { GenAiModule } from "@genai/genai.module";
+import {
+  ConversationEntity,
+  ConversationEntitySchema,
+} from "./entity/conversation.entity";
 import { ModerationModule } from "@moderation/moderation.module";
 import { CharacterService } from "./service/character.service";
 import { TriggerService } from "./service/trigger.service";
@@ -10,11 +14,8 @@ import { PersonService } from "./service/person.service";
 import { PersonEntity, PersonEntitySchema } from "./entity/person.entity";
 import { PromptService } from "./service/prompt.service";
 import { ConversationService } from "./service/conversation.service";
-import {
-  ConversationEntity,
-  ConversationEntitySchema,
-} from "@roleplay/entity/conversation.entity";
-import { AnswerStrategyService } from "@roleplay/service/answer-strategy.service";
+import { AnswerStrategyService } from "./service/answer-strategy.service";
+import { ImageDescriptionService } from "./service/image-description.service";
 
 @Module({
   imports: [
@@ -37,7 +38,8 @@ import { AnswerStrategyService } from "@roleplay/service/answer-strategy.service
     TriggerService,
     PersonService,
     PromptService,
+    ImageDescriptionService,
   ],
-  exports: [CharacterService],
+  exports: [CharacterService, ImageDescriptionService],
 })
 export class RoleplayModule {}
