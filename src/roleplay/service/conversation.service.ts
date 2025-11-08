@@ -7,7 +7,7 @@ import { MessageService } from "@core/service/message.service";
 import { UserService } from "@core/service/user.service";
 import { PersonService } from "@roleplay/service/person.service";
 import { MessageDocument } from "@core/entity/message.entity";
-import { Content, Schema as GenAiOpenApiSchema, Type } from "@google/genai";
+import { Content, JobState, Schema as GenAiOpenApiSchema, Type } from "@google/genai";
 import { PromptService } from "@roleplay/service/prompt.service";
 import { UserDocument } from "@core/entity/user.entity";
 import {
@@ -415,19 +415,20 @@ export class ConversationService {
     }
 
     for (const chatId of chatIds) {
-      try {
-        const batches = await this.batchService.getPendingBatches(chatId);
+      const batches = await this.batchService.getPendingBatches(chatId);
 
-        for (const batch of batches) {
-          if (!batch.job || !batch.job.name) {
-            this.logger.warn(
-              `Batch ${batch.id} for chat ${chatId} has no job assigned`
-            );
-            continue;
-          }
+      for (const batch of batches) {
+        if (!batch.job || !batch.job.name) {
+          this.logger.warn(
+            `Batch ${batch.id} for chat ${chatId} has no job assigned`
+          );
+          continue;
+        }
 
-          const batchJob = await this.geminiService.getBatchJob(batch.job.name);
+        // @todo: [MED] Switch is wrong, get only returns pending jobs
+        const batchJob = await this.geminiService.getBatchJob(batch.job.name);
 
+        try {
           if (GENAI_JOB_STATES_PROGRESS.includes(batchJob.state)) {
             this.logger.log(
               `Batch ${batch.id} for chat ${chatId} is still in progress (${batchJob.state})`
@@ -484,23 +485,31 @@ export class ConversationService {
               `Batch ${batch.id} for chat ${chatId} has unknown state ${batchJob.state}`
             );
           }
+        } catch (err) {
+          this.logger.error(
+            `Error processing batch ${batch.id} for chat ${chatId}: ${err.message}`,
+            err.stack
+          );
 
           await this.batchService.updateBatchJobState(
             chatId,
             batch.id,
-            batchJob.state,
+            JobState.JOB_STATE_FAILED,
             batchJob.startTime ? new Date(batchJob.startTime) : undefined,
             batchJob.endTime ? new Date(batchJob.endTime) : undefined
           );
-
-          this.logger.log(
-            `Processed batch ${batch.id} for chat ${chatId} to state ${batchJob.state}`
-          );
         }
-      } catch (err) {
-        this.logger.error(
-          `Error processing batch for chat ${chatId}: ${err.message}`,
-          err.stack
+
+        await this.batchService.updateBatchJobState(
+          chatId,
+          batch.id,
+          batchJob.state,
+          batchJob.startTime ? new Date(batchJob.startTime) : undefined,
+          batchJob.endTime ? new Date(batchJob.endTime) : undefined
+        );
+
+        this.logger.log(
+          `Processed batch ${batch.id} for chat ${chatId} to state ${batchJob.state}`
         );
       }
     }

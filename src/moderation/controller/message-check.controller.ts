@@ -270,7 +270,14 @@ export class MessageCheckController {
         return next();
       }
 
-      if ("photo" in context.message && context.message.photo) {
+      const message:
+        | TelegramUpdate.MessageUpdate["message"]
+        | TelegramUpdate.EditedMessageUpdate["edited_message"] =
+        "message" in context.update
+          ? context.update.message
+          : context.update.edited_message;
+
+      if ("photo" in message && message.photo) {
         const description =
           await this.imageDescriptionService.getImageDescription(
             context.chat.id,
@@ -280,8 +287,8 @@ export class MessageCheckController {
         const checkResult = await this.imageCheckService.checkImageFlags(
           context.chat.id,
           context.from.id,
-          context.message.message_id,
-          context.message,
+          message.message_id,
+          message,
           description.flags
         );
 
@@ -325,67 +332,74 @@ export class MessageCheckController {
           }
         }
 
-        const profanities =
-          await this.profanityCheckService.containsProfanities(
-            context.chat.id,
-            description.text
-          );
-
-        if (profanities && profanities.length > 0) {
-          void context.deleteMessage(context.message.message_id);
-
-          await this.warn(
-            context,
-            context.message,
-            `Used image with profanities: ${profanities.join(", ")}`,
-            `Sent an image with profanity`
-          );
-        }
-
-        const hasNonEnglish =
-          this.languageCheckService.containsNonLanguageSymbols(
-            description.text,
-            ["en"]
-          );
-
-        if (hasNonEnglish) {
-          void context.react("👀").catch(() => {
-            this.logger.warn(
-              "Failed to react to non-English image description"
+        if (description.text) {
+          const profanities =
+            await this.profanityCheckService.containsProfanities(
+              context.chat.id,
+              description.text
             );
-          });
 
-          const explanation = await this.characterService.rephrase(
-            context.chat.id,
-            context.from.id,
-            `Description of the image: ${description.description}`,
-            await this.userService.getUser(
-              context.chat.id,
-              context.from.id,
-              context.from
-            )
-          );
+          if (profanities && profanities.length > 0) {
+            void context.deleteMessage(context.message.message_id);
 
-          this.messageService
-            .sendMessage(
-              context.chat.id,
-              explanation,
-              {
-                reply_parameters: {
-                  message_id: context.message.message_id,
-                  chat_id: context.chat.id,
-                  allow_sending_without_reply: false,
-                },
-              },
-              true,
-              false
-            )
-            .catch((error) => {
-              this.logger.error(
-                "Failed to send image description message",
-                error
+            await this.warn(
+              context,
+              context.message,
+              `Used image with profanities: ${profanities.join(", ")}`,
+              `Sent an image with profanity`
+            );
+          }
+
+          const hasNonEnglish =
+            this.languageCheckService.containsNonLanguageSymbols(
+              description.text,
+              ["en"]
+            );
+
+          if (hasNonEnglish) {
+            void context.react("👀").catch(() => {
+              this.logger.warn(
+                "Failed to react to non-English image description"
               );
             });
+
+            const explanation =
+              await this.messageService.handleMessageAnswerProcessing(
+                context.chat.id,
+                this.characterService.rephrase(
+                  context.chat.id,
+                  context.from.id,
+                  `Description of the image: ${description.description}`,
+                  await this.userService.getUser(
+                    context.chat.id,
+                    context.from.id,
+                    context.from
+                  )
+                ),
+                60
+              );
+
+            this.messageService
+              .sendMessage(
+                context.chat.id,
+                explanation,
+                {
+                  reply_parameters: {
+                    message_id: context.message.message_id,
+                    chat_id: context.chat.id,
+                    allow_sending_without_reply: false,
+                  },
+                },
+                true,
+                false
+              )
+              .catch((error) => {
+                this.logger.error(
+                  "Failed to send image description message",
+                  error
+                );
+              });
+          }
         }
       }
     } catch (error) {

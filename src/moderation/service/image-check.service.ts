@@ -38,7 +38,7 @@ export class ImageCheckService {
     {
       code: "Violence",
       description: "The image shows acts of violence or physical harm.",
-      action: "Warn",
+      action: "Ignore",
     },
     {
       code: "HateSymbols",
@@ -86,7 +86,9 @@ export class ImageCheckService {
     chatId: number,
     userId: number,
     messageId: number,
-    messageUpdate: TelegramUpdate.MessageUpdate["message"],
+    messageUpdate:
+      | TelegramUpdate.MessageUpdate["message"]
+      | TelegramUpdate.EditedMessageUpdate["edited_message"],
     flagsParam: Array<string>
   ): Promise<ImageCheckResult> {
     if (flagsParam.length === 0) {
