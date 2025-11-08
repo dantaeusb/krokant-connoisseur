@@ -6,6 +6,8 @@ services:
       dockerfile: Dockerfile
       target: prod
     restart: on-failure:3
+    ports:
+      - "3000:30000"
     env_file: .env
     environment:
       - MONGODB_URI=mongodb://${MONGO_BOT_USER}:${MONGO_BOT_PASSWORD}@mongo:27017/bot?authSource=bot
