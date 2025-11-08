@@ -10,10 +10,11 @@ import {
   MessageDocument,
   MessageEntity,
   MessageFileType,
-} from "@core/entity/message.entity";
+} from "../entity/message.entity";
 import { ConfigService } from "./config.service";
 import { UserService } from "./user.service";
 import { FormatterService } from "./formatter.service";
+import { FileService } from "./file.service";
 import { ExtraReplyMessage } from "telegraf/typings/telegram-types";
 
 /**
@@ -50,7 +51,8 @@ export class MessageService {
     private messageEntityModel: Model<MessageEntity>,
     private readonly formatterService: FormatterService,
     private readonly configService: ConfigService,
-    private readonly userService: UserService
+    private readonly userService: UserService,
+    private readonly fileService: FileService
   ) {}
 
   public async handleMessageAnswerProcessing<T>(
@@ -324,7 +326,21 @@ export class MessageService {
       }
 
       fileType = "photo";
-      uniqueFileId = context.message.photo[0].file_unique_id;
+      const photo = this.fileService.getPhotoMessageBestCandidate(
+        context.message
+      );
+      uniqueFileId = photo.file_unique_id;
+
+      const file = await this.fileService.getFile(
+        photo.file_unique_id,
+        photo.file_id,
+        "image/jpeg",
+        false
+      );
+
+      if (file) {
+        text += `\n\n[Image Description: ${file.description}]`;
+      }
     }
 
     if ("sticker" in context.message) {

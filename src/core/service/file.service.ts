@@ -48,11 +48,12 @@ export class FileService {
   public async getFile(
     fileUniqueId: string,
     fileId: string,
-    mimeType: string
+    mimeType: string,
+    downloadIfNotExists = true
   ): Promise<FileDocument | null> {
     let file = await this.fileEntityModel.findOne({ fileUniqueId });
 
-    if (!file) {
+    if (!file && downloadIfNotExists) {
       file = await this.downloadFile(fileId, mimeType);
     }
 
