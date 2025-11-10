@@ -114,7 +114,7 @@ export class ImageDescriptionService {
         explanation: {
           type: Type.STRING,
           description:
-            "If the image contains any important non-background text in a language other than English, use the given persona description to explain the image:",
+            "If the image contains any important non-background text in a language other than English, use the given persona description to explain the image. If there is no such text, leave this field empty.",
           example:
             'a question box and a rather unhelpful response to an Italian phrase: "Speravo de morì prima," which translates to "I hoped to die sooner." ' +
             'The response, of course, dismisses understanding Italian and offers a generic "happy for you/sorry that happened." ' +

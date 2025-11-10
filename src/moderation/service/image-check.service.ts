@@ -213,6 +213,7 @@ export class ImageCheckService {
           chatId,
           messageUpdate.photo!.slice(-1)[0].file_id,
           {
+            parse_mode: "MarkdownV2",
             message_thread_id: messageUpdate.message_thread_id,
             has_spoiler: true,
             caption,
