@@ -4,6 +4,7 @@ import remarkParse from "remark-parse";
 import remarkStringify from "remark-stringify";
 import { REACTION_CONSTANTS } from "@core/constants/reaction.constants";
 import { getHandlers } from "@core/utils/formatter/handlers";
+import { UserEntity } from "@core/entity/user.entity";
 
 @Injectable()
 export class FormatterService {
@@ -75,6 +76,20 @@ export class FormatterService {
     }
 
     return "a moment ago";
+  }
+
+  public formatUserHandle(
+    user?: Pick<UserEntity, "userId" | "username" | "name">
+  ): string {
+    if (user && user.username) {
+      if (user.username) {
+        return `[@${user.username}](tg://user?id=${user.userId})`;
+      }
+
+      return `[\`${user.name}\`](tg://user?id=${user.userId})`;
+    } else {
+      return `Someone`;
+    }
   }
 
   public getReactionFromNumber(num: number): bigint {

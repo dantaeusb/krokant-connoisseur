@@ -356,33 +356,17 @@ export class MessageCheckController {
               ["en"]
             );
 
-          if (hasNonEnglish) {
+          if (hasNonEnglish && description.explanation) {
             void context.react("👀").catch(() => {
               this.logger.warn(
                 "Failed to react to non-English image description"
               );
             });
 
-            const explanation =
-              await this.messageService.handleMessageAnswerProcessing(
-                context.chat.id,
-                this.characterService.rephrase(
-                  context.chat.id,
-                  context.from.id,
-                  `Description of the image: ${description.description}`,
-                  await this.userService.getUser(
-                    context.chat.id,
-                    context.from.id,
-                    context.from
-                  )
-                ),
-                60
-              );
-
             this.messageService
               .sendMessage(
                 context.chat.id,
-                explanation,
+                description.explanation,
                 {
                   reply_parameters: {
                     message_id: context.message.message_id,

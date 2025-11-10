@@ -263,22 +263,21 @@ export class GeminiService {
 
   public async describeImage(
     imageData: Buffer,
+    contents: Array<Content> = [],
     responseSchema: Schema,
     systemInstruction?: string
   ): Promise<Candidate | null> {
-    const contents: Array<Content> = [
-      {
-        role: "user",
-        parts: [
-          {
-            inlineData: {
-              mimeType: "image/jpeg",
-              data: imageData.toString("base64"),
-            },
+    contents.push({
+      role: "user",
+      parts: [
+        {
+          inlineData: {
+            mimeType: "image/jpeg",
+            data: imageData.toString("base64"),
           },
-        ],
-      },
-    ];
+        },
+      ],
+    });
 
     this.logPromptForDebug(contents, systemInstruction);
 

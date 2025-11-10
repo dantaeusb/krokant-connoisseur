@@ -13,11 +13,12 @@ import { Context, Telegraf } from "telegraf";
 import { Update as TelegramUpdate } from "telegraf/types";
 import { AdminGuard } from "../guard/admin.guard";
 import { MessageService } from "../service/message.service";
+import { FormatterService } from "../service/formatter.service";
 import { AuthorityService } from "../service/authority.service";
 import { PingGroupService } from "../service/ping-group.service";
 import { CommandsService } from "../service/commands.service";
 import { UserService } from "../service/user.service";
-import { UserEntity } from "@core/entity/user.entity";
+import { UserEntity } from "../entity/user.entity";
 
 @Update()
 export class ToolsController {
@@ -27,6 +28,7 @@ export class ToolsController {
     @InjectBot(BotName)
     private readonly bot: Telegraf<Context>,
     private readonly commandsService: CommandsService,
+    private readonly formatterService: FormatterService,
     private readonly authorityService: AuthorityService,
     private readonly messageService: MessageService,
     private readonly pingGroupService: PingGroupService,
@@ -236,15 +238,7 @@ export class ToolsController {
     const mentions = userIds
       .map((userId) => {
         const user = userById.get(userId);
-        if (user && user.username) {
-          if (user.username) {
-            return `[@${user.username}](tg://user?id=${user.userId})`;
-          }
-
-          return `[\`${user.name}\`](tg://user?id=${user.userId})`;
-        } else {
-          return `[Someone](tg://user?id=${userId})`;
-        }
+        return this.formatterService.formatUserHandle(user);
       })
       .join(" ");
 

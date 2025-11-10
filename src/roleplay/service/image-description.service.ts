@@ -4,11 +4,14 @@ import { Update as TelegramUpdate } from "telegraf/types";
 import { ConfigService } from "@core/service/config.service";
 import { GeminiService } from "@genai/service/gemini.service";
 import { FileService } from "@core/service/file.service";
+import { UserService } from "@core/service/user.service";
 import { MessageService } from "@core/service/message.service";
 import { ImageCheckService } from "@moderation/service/image-check.service";
+import { PromptService } from "./prompt.service";
 
 type ImageDescription = {
   description: string;
+  explanation?: string;
   text?: string;
   flags: Array<string>;
 };
@@ -21,8 +24,10 @@ export class ImageDescriptionService {
     private readonly configService: ConfigService,
     private readonly geminiService: GeminiService,
     private readonly fileService: FileService,
+    private readonly userService: UserService,
     private readonly messageService: MessageService,
-    private readonly imageCheckService: ImageCheckService
+    private readonly imageCheckService: ImageCheckService,
+    private readonly promptService: PromptService
   ) {}
 
   public async getImageDescription(
@@ -39,8 +44,18 @@ export class ImageDescriptionService {
       "image/jpeg"
     );
 
+    const users = await this.userService.getActiveUsersInChat(chatId, 10);
+
+    const [characterPrompt, participantsPrompt, situationalPrompt] =
+      await Promise.all([
+        this.promptService.getPromptFromChatCharacter(chatId),
+        this.promptService.getPromptForUsersParticipants(users),
+        this.promptService.getSituationalPrompt(users),
+      ]);
+
     const result = await this.geminiService.describeImage(
       file.data,
+      [...characterPrompt, ...participantsPrompt, ...situationalPrompt],
       this.getDescriptionSchema(),
       config.mediaDescriptionSystemPrompt
     );
@@ -95,6 +110,15 @@ export class ImageDescriptionService {
             "If any text is present, it should be translated into English and explained in context.",
           example:
             "A serene landscape featuring a calm lake surrounded by tall pine trees under a clear blue sky with a few fluffy clouds.",
+        },
+        explanation: {
+          type: Type.STRING,
+          description:
+            "If the image contains any important non-background text in a language other than English, use the given persona description to explain the image:",
+          example:
+            'a question box and a rather unhelpful response to an Italian phrase: "Speravo de morì prima," which translates to "I hoped to die sooner." ' +
+            'The response, of course, dismisses understanding Italian and offers a generic "happy for you/sorry that happened." ' +
+            "So, in essence, it's a rather typical anime aesthetic with a side of social media interaction, where the text completely misses the mark.",
         },
         text: {
           type: Type.STRING,

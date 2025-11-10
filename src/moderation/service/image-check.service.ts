@@ -8,6 +8,8 @@ import {
   WarnResult,
 } from "@moderation/service/moderation.service";
 import { Update as TelegramUpdate } from "telegraf/types";
+import { FormatterService } from "@core/service/formatter.service";
+import { UserService } from "@core/service/user.service";
 
 export type ImageFlagAction =
   | "Ignore"
@@ -34,7 +36,8 @@ export class ImageCheckService {
     },
     {
       code: "Sex",
-      description: "The image contains sexual act or intercourse, with visible genitalia.",
+      description:
+        "The image contains sexual act, masturbation or intercourse, with visible genitalia.",
       action: "WarnSpoiler",
     },
     {
@@ -81,6 +84,8 @@ export class ImageCheckService {
   constructor(
     @InjectBot(BotName)
     private readonly bot: Telegraf<Context>,
+    private readonly formatterService: FormatterService,
+    private readonly userService: UserService,
     private readonly moderationService: ModerationService
   ) {}
 
@@ -100,6 +105,8 @@ export class ImageCheckService {
     if (flagsParam.length === 0) {
       return ImageCheckResult.NONE;
     }
+
+    const user = await this.userService.getUser(chatId, userId);
 
     const flags = ImageCheckService.FLAGS.filter((flag) =>
       flagsParam.includes(flag.code)
@@ -194,15 +201,13 @@ export class ImageCheckService {
       "photo" in messageUpdate &&
       !messageUpdate.has_media_spoiler
     ) {
-      const [result] = await Promise.all([
-        await this.moderationService.warnUser(
-          chatId,
-          userId,
-          undefined,
-          `Image should have had a spoiler: ${warningFlags
-            .map((flag) => flag.description)
-            .join(", ")}`
-        ),
+      const caption = `Sent by ${this.formatterService.formatUserHandle(user)}`;
+
+      if (messageUpdate.caption) {
+        caption.concat(`: ${messageUpdate.caption}`);
+      }
+
+      await Promise.all([
         this.bot.telegram.deleteMessage(chatId, messageId),
         this.bot.telegram.sendPhoto(
           chatId,
@@ -210,16 +215,10 @@ export class ImageCheckService {
           {
             message_thread_id: messageUpdate.message_thread_id,
             has_spoiler: true,
+            caption,
           }
         ),
       ]);
-
-      switch (result) {
-        case WarnResult.MUTED:
-          return ImageCheckResult.MUTED;
-        case WarnResult.PERMA_BANNED:
-          return ImageCheckResult.PERMA_BANNED;
-      }
     }
 
     return ImageCheckResult.NONE;
