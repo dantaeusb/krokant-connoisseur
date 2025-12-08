@@ -443,6 +443,8 @@ export class CharacterController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Next() next: () => Promise<void>
   ): Promise<void> {
+    this.logger.log("Handling /reload command for roleplay");
+
     try {
       await this.characterService.reloadCacheForChat(context.chat.id);
     } catch (error) {

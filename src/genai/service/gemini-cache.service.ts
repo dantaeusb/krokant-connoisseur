@@ -108,7 +108,9 @@ export class GeminiCacheService {
         systemInstruction,
         displayName: this.getDisplayName(chatId, quality, contextWindow),
         ttl: `${GeminiCacheService.CACHES_TTL[quality]}s`,
-        ...(canGoogle ? { tools: [{ googleSearch: {} }] } : {}),
+        tools: [
+          ...(canGoogle ? [{ googleSearch: {} }] : []),
+        ]
       },
     });
 

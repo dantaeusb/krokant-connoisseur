@@ -130,7 +130,8 @@ export class PromptService {
    * @param userParticipants
    */
   public async getPromptForUsersParticipants(
-    userParticipants: Array<UserDocument>
+    userParticipants: Array<UserDocument>,
+    factsLimit = 150,
   ): Promise<Array<Content>> {
     let text =
       `Use the context of the conversation and information about users ` +
@@ -161,6 +162,7 @@ export class PromptService {
         }
         if (user.person.characteristics.length > 0) {
           personDescription += `Facts about that person:\n${user.person.characteristics
+            .slice(-factsLimit, user.person.characteristics.length)
             .map((fact) => `- ${fact}`)
             .join("\n")}\n`;
         }

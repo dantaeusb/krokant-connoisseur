@@ -29,7 +29,7 @@ export class ConfigController {
     @Ctx() context: Context<TelegramUpdate.MessageUpdate>,
     @Next() next: () => Promise<void>
   ): Promise<void> {
-    this.logger.log("Handling /reload command");
+    this.logger.log("Handling /reload command for core");
 
     try {
       await this.configService.reload(context.chat.id);

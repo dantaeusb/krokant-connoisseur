@@ -468,8 +468,9 @@ export class CharacterService {
         await this.geminiCacheService.deleteChatCache(chatId, q);
       }
       return;
+    } else {
+      await this.geminiCacheService.deleteChatCache(chatId, quality);
     }
-    await this.geminiCacheService.deleteChatCache(chatId, quality);
   }
 
   /**
