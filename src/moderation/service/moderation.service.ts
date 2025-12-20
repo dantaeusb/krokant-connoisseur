@@ -285,20 +285,27 @@ export class ModerationService {
   }
 
   public async unbanUser(chatId: number, userId: number): Promise<void> {
-    Promise.all([
-      this.bot.telegram.restrictChatMember(chatId, userId, {
-        permissions: {
-          can_send_messages: true,
-          can_send_polls: true,
-          can_send_other_messages: true,
-          can_add_web_page_previews: true,
-          can_invite_users: true,
-        },
-      }),
-      this.bot.telegram.unbanChatMember(chatId, userId, {
-        only_if_banned: true,
-      }),
-    ]);
+    try {
+      await Promise.all([
+        this.bot.telegram.restrictChatMember(chatId, userId, {
+          permissions: {
+            can_send_messages: true,
+            can_send_polls: true,
+            can_send_other_messages: true,
+            can_add_web_page_previews: true,
+            can_invite_users: true,
+          },
+        }),
+        this.bot.telegram.unbanChatMember(chatId, userId, {
+          only_if_banned: true,
+        }),
+      ]);
+    } catch (error) {
+      this.logger.error(
+        `Failed to unban user ${userId} in chat ${chatId}`,
+        error
+      );
+    }
   }
 
   public async getBans(

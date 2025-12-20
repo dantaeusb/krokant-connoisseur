@@ -5,6 +5,10 @@ import { CounterEntity, CounterEntitySchema } from "./entity/counter.entiy";
 import { UserEntity, UserSchema } from "./entity/user.entity";
 import { MessageEntity, MessageSchema } from "./entity/message.entity";
 import { FileEntity, FileSchema } from "./entity/file.entity";
+import {
+  ScheduledTaskEntity,
+  ScheduledTaskSchema,
+} from "@core/entity/scheduled-task.entity";
 import { ConfigController } from "./controller/config.controller";
 import { MessageService } from "./service/message.service";
 import { UserService } from "./service/user.service";
@@ -17,6 +21,7 @@ import { PingGroupService } from "./service/ping-group.service";
 import { CommandsService } from "./service/commands.service";
 import { CounterService } from "./service/counter.service";
 import { FileService } from "./service/file.service";
+import { TaskService } from "@core/service/task.service";
 
 @Module({
   imports: [
@@ -26,6 +31,10 @@ import { FileService } from "./service/file.service";
       { name: UserEntity.COLLECTION_NAME, schema: UserSchema },
       { name: MessageEntity.COLLECTION_NAME, schema: MessageSchema },
       { name: FileEntity.COLLECTION_NAME, schema: FileSchema },
+      {
+        name: ScheduledTaskEntity.COLLECTION_NAME,
+        schema: ScheduledTaskSchema,
+      },
     ]),
   ],
   providers: [
@@ -41,6 +50,7 @@ import { FileService } from "./service/file.service";
     PingGroupService,
     FormatterService,
     FileService,
+    TaskService,
   ],
   exports: [
     AuthorityService,
@@ -50,7 +60,8 @@ import { FileService } from "./service/file.service";
     ConfigService,
     CounterService,
     FormatterService,
-    FileService
+    FileService,
+    TaskService,
   ],
 })
 export class CoreModule {}

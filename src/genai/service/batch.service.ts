@@ -200,6 +200,18 @@ export class BatchService {
       .exec();
   }
 
+  public async getBatch(
+    chatId: number,
+    batchId: number
+  ): Promise<ChatBatchDocument> {
+    return this.chatBatchEntityModel
+      .findOne({
+        chatId: chatId,
+        id: batchId,
+      })
+      .exec();
+  }
+
   public async updateBatchJobState(
     chatId: number,
     batchId: number,

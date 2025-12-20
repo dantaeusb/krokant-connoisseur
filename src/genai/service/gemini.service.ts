@@ -13,14 +13,20 @@ import {
   Part,
   SafetySetting,
   Schema,
+  ToolListUnion,
   Type,
 } from "@google/genai";
 import * as process from "node:process";
 import { ModelQualityType } from "@genai/types/model-quality.type";
 
+/**
+ * Core service to interact with Google Gemini models
+ * Abstracts details of model selection, safety settings,
+ * content generation, and structured output handling.
+ */
 @Injectable()
 export class GeminiService {
-  private readonly logger = new Logger(GeminiService.name);
+  private readonly logger = new Logger("GenAi/GeminiService");
 
   private readonly googleGenAI: GoogleGenAI;
   private readonly safetySettings: Array<SafetySetting> = [
@@ -93,41 +99,30 @@ export class GeminiService {
     return this.safetySettings;
   }
 
-  /*
-   * Content generation on-demand with different quality levels
-   */
-
-  public async generate(
+  public generate(
     quality: ModelQualityType,
-    contents: ContentListUnion,
     systemInstruction: string,
-    canGoogle = false,
-    cacheName?: string
-  ): Promise<Candidate | null> {
-    this.logPromptForDebug(contents, systemInstruction);
-
+    contents: Array<Content>,
+    tools: ToolListUnion,
+    cachedContent?: string
+  ): Promise<Candidate> {
     const config: GenerateContentConfig = {
       candidateCount: 1,
       safetySettings: this.safetySettings,
       temperature: this.qualityModelSettings[quality].temperature,
       topP: this.qualityModelSettings[quality].topP,
+      ...(tools.length > 0 ? { tools } : {}),
     };
 
-    canGoogle = canGoogle && this.canGoogleSearch(quality);
-
-    if (cacheName) {
-      this.logger.debug(`Using cache ${cacheName}`);
-      config.cachedContent = cacheName;
+    if (cachedContent) {
+      config.cachedContent = cachedContent;
     } else {
       config.systemInstruction = systemInstruction;
-
-      if (canGoogle) {
-        this.logger.debug(`Enabling Google Search tool`);
-        config.tools = [{ googleSearch: {} }];
-      }
     }
 
-    const result = await this.googleGenAI.models.generateContent({
+    this.logPromptForDebug(contents, systemInstruction);
+
+    const result = this.googleGenAI.models.generateContent({
       model: this.qualityModelSettings[quality].model,
       contents,
       config,
@@ -304,7 +299,7 @@ export class GeminiService {
    * Utilities
    */
 
-  private logPromptForDebug(
+  public logPromptForDebug(
     prompt: ContentListUnion,
     systemInstruction?: string
   ) {

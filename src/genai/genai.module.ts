@@ -1,14 +1,13 @@
 import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 import { CoreModule } from "@core/core.module";
-import { GeminiService } from "./service/gemini.service";
 import { ChatCacheEntity, ChatCacheSchema } from "./entity/chat-cache.entity";
-import { GeminiCacheService } from "./service/gemini-cache.service";
 import { BatchService } from "./service/batch.service";
 import {
   ChatBatchEntity,
   ChatBatchSchema,
 } from "@genai/entity/chat-batch.entity";
+import { GenerationService } from "@genai/service/generation.service";
 
 @Module({
   imports: [
@@ -25,7 +24,7 @@ import {
     ]),
     CoreModule,
   ],
-  providers: [GeminiService, GeminiCacheService, BatchService],
-  exports: [GeminiService, GeminiCacheService, BatchService],
+  providers: [GenerationService, BatchService],
+  exports: [GenerationService, BatchService],
 })
 export class GenAiModule {}

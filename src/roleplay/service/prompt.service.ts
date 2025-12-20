@@ -162,7 +162,7 @@ export class PromptService {
         }
         if (user.person.characteristics.length > 0) {
           personDescription += `Facts about that person:\n${user.person.characteristics
-            .slice(-factsLimit, user.person.characteristics.length)
+            .slice(-factsLimit)
             .map((fact) => `- ${fact}`)
             .join("\n")}\n`;
         }

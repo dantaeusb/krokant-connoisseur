@@ -5,6 +5,7 @@ import {
 } from "@roleplay/entity/person/thought.entity";
 import { HydratedDocument } from "mongoose";
 import { PersonCharacteristicEntity } from "@roleplay/entity/person/characteristic.entity";
+import { PersonStoryEntity } from "@roleplay/entity/person/story.entity";
 
 export type PersonDocument = HydratedDocument<PersonEntity>;
 
@@ -33,6 +34,9 @@ export class PersonEntity {
    */
   @Prop()
   characteristics: Array<string | PersonCharacteristicEntity>;
+
+  @Prop()
+  stories: Array<PersonStoryEntity>;
 
   /**
    * How much knowledge accumulated about the person

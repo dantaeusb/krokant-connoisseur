@@ -21,6 +21,7 @@ import { PersonService } from "../service/person.service";
 import { ConfigService } from "@core/service/config.service";
 import { ConversationService } from "@roleplay/service/conversation.service";
 import { User } from "@telegraf/types/manage";
+import { RoleplayChatService } from "@roleplay/service/roleplay-chat.service";
 
 /**
  * Handles character talking and responses.
@@ -37,8 +38,7 @@ export class CharacterController {
     private readonly bot: Telegraf<Context>,
     private readonly configService: ConfigService,
     private readonly commandsService: CommandsService,
-    private readonly characterService: CharacterService,
-    private readonly conversationService: ConversationService,
+    private readonly roleplayChatService: RoleplayChatService,
     private readonly triggerService: TriggerService,
     private readonly messageService: MessageService,
     private readonly userService: UserService,
@@ -184,7 +184,7 @@ export class CharacterController {
 
       const response = await this.messageService.handleMessageAnswerProcessing(
         context.chat.id,
-        this.characterService.respond(
+        this.roleplayChatService.respond(
           context.chat.id,
           message.message_id,
           message,
@@ -243,7 +243,10 @@ export class CharacterController {
           message.from.id
         );
 
-        const greet = await this.characterService.greet(context.chat.id, user);
+        const greet = await this.roleplayChatService.greet(
+          context.chat.id,
+          user
+        );
 
         if (greet) {
           await this.messageService.sendMessage(context.chat.id, greet);
@@ -446,7 +449,7 @@ export class CharacterController {
     this.logger.log("Handling /reload command for roleplay");
 
     try {
-      await this.characterService.reloadCacheForChat(context.chat.id);
+      await this.roleplayChatService.reloadCacheForChat(context.chat.id);
     } catch (error) {
       this.logger.error("Failed to reload chat cache", error);
       context.react("🤷‍♀").catch((err: Error) => {
