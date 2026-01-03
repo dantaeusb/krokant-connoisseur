@@ -166,7 +166,7 @@ export class MessageCheckController {
 
           const name = user?.name || "User";
 
-          if (warnResult === LanguageWarnResult.FIRST_WARNED) {
+          /*if (warnResult === LanguageWarnResult.FIRST_WARNED) {
             await this.reply(
               context,
               message,
@@ -197,7 +197,7 @@ export class MessageCheckController {
               message,
               `${name} you have been permanently banned for whatever you did before and repeated use of non-English language.`
             );
-          }
+          }*/
         }
       }
     } catch (error) {
