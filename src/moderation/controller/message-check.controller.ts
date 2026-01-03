@@ -146,11 +146,11 @@ export class MessageCheckController {
             "pt",
           ])
         ) {
-          const warnResult =
-            await this.languageCheckService.warnUserForLanguage(
+          const warnResult = LanguageWarnResult.SOFT_WARNED;
+            /*await this.languageCheckService.warnUserForLanguage(
               context.chat.id,
               context.from.id
-            );
+            );*/
 
           void context.react("👀").catch(() => {
             this.logger.warn("Failed to react to translated message");
